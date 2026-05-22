@@ -41,6 +41,10 @@ export async function POST(_request: Request, context: RouteContext) {
             status: "needs_assignment",
             notes: `Auto-generated from Airbnb calendar event checking out on ${toDateOnly(event.checkOutDate)}`,
           },
+          include: {
+            calendarEvent: true,
+            assignedProvider: true,
+          },
         })
       )
     );

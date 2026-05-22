@@ -20,7 +20,10 @@ export async function GET(_request: Request, context: RouteContext) {
     const cleaningJobs = await prisma.cleaningJob.findMany({
       where: { propertyId: property.id },
       orderBy: { scheduledDate: "asc" },
-      include: { calendarEvent: true },
+      include: {
+        calendarEvent: true,
+        assignedProvider: true,
+      },
     });
 
     return NextResponse.json({

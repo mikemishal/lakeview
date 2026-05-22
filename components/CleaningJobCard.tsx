@@ -5,10 +5,20 @@ export type CleaningJobCalendarEvent = {
   checkOutDate: string;
 };
 
+type AssignedProvider = {
+  id: string;
+  name: string;
+  companyName: string | null;
+  email: string | null;
+  phone: string | null;
+  serviceType: string;
+};
+
 export type CleaningJobItem = {
   id: string;
   propertyId: string;
   calendarEventId: string | null;
+  assignedProviderId: string | null;
   title: string;
   scheduledDate: string;
   status: string;
@@ -16,12 +26,22 @@ export type CleaningJobItem = {
   createdAt: string;
   updatedAt: string;
   calendarEvent: CleaningJobCalendarEvent | null;
+  assignedProvider: AssignedProvider | null;
+};
+
+type CleanerProviderOption = {
+  id: string;
+  name: string;
+  companyName: string | null;
 };
 
 type CleaningJobCardProps = {
   job: CleaningJobItem;
   onStatusChange?: (jobId: string, status: string) => void;
   statusUpdating?: boolean;
+  cleanerProviders?: CleanerProviderOption[];
+  onProviderChange?: (jobId: string, providerId: string | null) => void;
+  providerUpdating?: boolean;
 };
 
 const STATUS_OPTIONS = [
@@ -73,6 +93,9 @@ export default function CleaningJobCard({
   job,
   onStatusChange,
   statusUpdating = false,
+  cleanerProviders = [],
+  onProviderChange,
+  providerUpdating = false,
 }: CleaningJobCardProps) {
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -86,6 +109,52 @@ export default function CleaningJobCard({
       <p className="text-sm text-slate-700">
         <span className="font-medium text-slate-900">Scheduled:</span> {formatDateLabel(job.scheduledDate)}
       </p>
+
+      <div className="mt-2 space-y-1">
+        <p className="text-sm text-slate-700">
+          <span className="font-medium text-slate-900">Assigned to:</span>{" "}
+          {job.assignedProvider ? job.assignedProvider.name : "Unassigned"}
+        </p>
+        {job.assignedProvider?.companyName ? (
+          <p className="text-sm text-slate-700">
+            <span className="font-medium text-slate-900">Company:</span>{" "}
+            {job.assignedProvider.companyName}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="mt-3 space-y-1">
+        <label
+          htmlFor={`cleaning-job-provider-${job.id}`}
+          className="block text-sm font-medium text-slate-700"
+        >
+          Assigned provider
+        </label>
+        <select
+          id={`cleaning-job-provider-${job.id}`}
+          value={job.assignedProviderId ?? ""}
+          onChange={(event) => {
+            if (onProviderChange) {
+              const selectedProviderId = event.target.value;
+              onProviderChange(job.id, selectedProviderId === "" ? null : selectedProviderId);
+            }
+          }}
+          disabled={providerUpdating}
+          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <option value="">Unassigned</option>
+          {cleanerProviders.map((provider) => (
+            <option key={provider.id} value={provider.id}>
+              {provider.companyName
+                ? `${provider.name} (${provider.companyName})`
+                : provider.name}
+            </option>
+          ))}
+        </select>
+        {providerUpdating ? (
+          <p className="text-xs text-slate-500">Updating assignment...</p>
+        ) : null}
+      </div>
 
       <div className="mt-3 space-y-1">
         <label htmlFor={`cleaning-job-status-${job.id}`} className="block text-sm font-medium text-slate-700">

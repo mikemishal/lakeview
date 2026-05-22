@@ -48,6 +48,8 @@ model CleaningJob {
   property        Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   calendarEventId String?       @unique
   calendarEvent   CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+  assignedProviderId String?
+  assignedProvider   ServiceProvider? @relation(fields: [assignedProviderId], references: [id], onDelete: SetNull)
   title           String
   scheduledDate   DateTime
   status          String        @default("needs_assignment")
@@ -56,6 +58,25 @@ model CleaningJob {
   updatedAt       DateTime      @updatedAt
 
   @@index([propertyId])
+  @@index([assignedProviderId])
   @@index([scheduledDate])
   @@index([status])
+}
+
+model ServiceProvider {
+  id          String   @id @default(cuid())
+  name        String
+  companyName String?
+  email       String?
+  phone       String?
+  serviceType String
+  notes       String?
+  active      Boolean  @default(true)
+  cleaningJobs CleaningJob[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([serviceType])
+  @@index([active])
+  @@index([name])
 }

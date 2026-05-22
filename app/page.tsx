@@ -6,6 +6,7 @@ import CalendarSyncForm from "@/components/CalendarSyncForm";
 import CalendarEventCard from "@/components/CalendarEventCard";
 import CleaningJobCard, { type CleaningJobItem } from "@/components/CleaningJobCard";
 import CleaningJobCalendar from "@/components/CleaningJobCalendar";
+import ServiceProviderForm from "@/components/ServiceProviderForm";
 import EmptyState from "@/components/EmptyState";
 import {
   CalendarEventItem,
@@ -64,6 +65,27 @@ type UpdateCleaningJobStatusResponse = {
   cleaningJob: CleaningJobItem;
 };
 
+type ServiceProvider = {
+  id: string;
+  name: string;
+  companyName: string | null;
+  email: string | null;
+  phone: string | null;
+  serviceType: string;
+  notes: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ServiceProvidersResponse = {
+  serviceProviders: ServiceProvider[];
+};
+
+type SaveServiceProviderResponse = {
+  serviceProvider: ServiceProvider;
+};
+
 function toDateOnly(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
@@ -109,6 +131,30 @@ export default function HomePage() {
   const [cleaningJobStatusFilter, setCleaningJobStatusFilter] = useState("all");
   const [showManualSync, setShowManualSync] = useState(false);
 
+  const [serviceProviders, setServiceProviders] = useState<ServiceProvider[]>([]);
+  const [loadingServiceProviders, setLoadingServiceProviders] = useState(true);
+  const [savingServiceProvider, setSavingServiceProvider] = useState(false);
+  const [serviceProviderError, setServiceProviderError] = useState("");
+  const [serviceProviderSuccess, setServiceProviderSuccess] = useState("");
+
+  const [providerName, setProviderName] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [serviceType, setServiceType] = useState("cleaner");
+  const [providerNotes, setProviderNotes] = useState("");
+
+  const [updatingProviderJobId, setUpdatingProviderJobId] = useState("");
+  const [providerAssignmentError, setProviderAssignmentError] = useState("");
+
+  const cleanerProviders = serviceProviders
+    .filter((provider) => provider.serviceType === "cleaner" && provider.active)
+    .map((provider) => ({
+      id: provider.id,
+      name: provider.name,
+      companyName: provider.companyName,
+    }));
+
   const filteredCleaningJobs =
     cleaningJobStatusFilter === "all"
       ? cleaningJobs
@@ -139,25 +185,58 @@ export default function HomePage() {
     }
   }, []);
 
+  const loadServiceProviders = useCallback(async () => {
+    setLoadingServiceProviders(true);
+
+    try {
+      const response = await fetch("/api/service-providers");
+      const data = (await response.json()) as ServiceProvidersResponse | CalendarSyncError;
+
+      if (!response.ok) {
+        setServiceProviderError(
+          (data as CalendarSyncError).error || "Failed to load service providers."
+        );
+        return;
+      }
+
+      setServiceProviders((data as ServiceProvidersResponse).serviceProviders);
+    } catch {
+      setServiceProviderError("Failed to load service providers.");
+    } finally {
+      setLoadingServiceProviders(false);
+    }
+  }, []);
+
   useEffect(() => {
     let isActive = true;
 
-    async function loadProperties() {
+    async function loadInitialData() {
       setLoadingProperties(true);
+      setLoadingServiceProviders(true);
 
       try {
-        const response = await fetch("/api/properties");
-        const data = (await response.json()) as LoadPropertiesResponse | SavePropertyError;
+        const [propertiesResponse, providersResponse] = await Promise.all([
+          fetch("/api/properties"),
+          fetch("/api/service-providers"),
+        ]);
 
-        if (!response.ok) {
-          if (isActive) {
-            setPropertyError((data as SavePropertyError).error || "Failed to load properties.");
-          }
+        const propertiesData = (await propertiesResponse.json()) as
+          | LoadPropertiesResponse
+          | SavePropertyError;
+        const providersData = (await providersResponse.json()) as
+          | ServiceProvidersResponse
+          | CalendarSyncError;
+
+        if (!isActive) {
           return;
         }
 
-        if (isActive) {
-          const loadedProperties = (data as LoadPropertiesResponse).properties;
+        if (!propertiesResponse.ok) {
+          setPropertyError(
+            (propertiesData as SavePropertyError).error || "Failed to load properties."
+          );
+        } else {
+          const loadedProperties = (propertiesData as LoadPropertiesResponse).properties;
           setProperties(loadedProperties);
 
           if (loadedProperties.length > 0) {
@@ -168,25 +247,22 @@ export default function HomePage() {
             setError("");
 
             try {
-              const eventsResponse = await fetch(
-                `/api/properties/${firstProperty.id}/events`
-              );
+              const eventsResponse = await fetch(`/api/properties/${firstProperty.id}/events`);
               const eventsData = (await eventsResponse.json()) as
                 | PropertyEventsResponse
                 | CalendarSyncError;
 
+              if (!isActive) {
+                return;
+              }
+
               if (!eventsResponse.ok) {
-                if (isActive) {
-                  setError(
-                    (eventsData as CalendarSyncError).error ||
-                      "Unable to load saved events."
-                  );
-                }
-              } else if (isActive) {
+                setError(
+                  (eventsData as CalendarSyncError).error || "Unable to load saved events."
+                );
+              } else {
                 setItems(
-                  mapDbEventsToCalendarItems(
-                    (eventsData as PropertyEventsResponse).events
-                  )
+                  mapDbEventsToCalendarItems((eventsData as PropertyEventsResponse).events)
                 );
                 void loadCleaningJobsForProperty(firstProperty);
               }
@@ -201,23 +277,83 @@ export default function HomePage() {
             }
           }
         }
+
+        if (!providersResponse.ok) {
+          setServiceProviderError(
+            (providersData as CalendarSyncError).error ||
+              "Failed to load service providers."
+          );
+        } else {
+          setServiceProviders((providersData as ServiceProvidersResponse).serviceProviders);
+        }
       } catch {
         if (isActive) {
           setPropertyError("Failed to load properties.");
+          setServiceProviderError("Failed to load service providers.");
         }
       } finally {
         if (isActive) {
           setLoadingProperties(false);
+          setLoadingServiceProviders(false);
         }
       }
     }
 
-    void loadProperties();
+    void loadInitialData();
 
     return () => {
       isActive = false;
     };
   }, [loadCleaningJobsForProperty]);
+
+  async function handleSaveServiceProvider() {
+    setSavingServiceProvider(true);
+    setServiceProviderError("");
+    setServiceProviderSuccess("");
+
+    try {
+      const response = await fetch("/api/service-providers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: providerName,
+          companyName,
+          email,
+          phone,
+          serviceType,
+          notes: providerNotes,
+        }),
+      });
+
+      const data = (await response.json()) as
+        | SaveServiceProviderResponse
+        | CalendarSyncError;
+
+      if (!response.ok) {
+        setServiceProviderError(
+          (data as CalendarSyncError).error || "Failed to create service provider."
+        );
+        return;
+      }
+
+      const createdProvider = (data as SaveServiceProviderResponse).serviceProvider;
+      setServiceProviders((previous) => [createdProvider, ...previous]);
+      setServiceProviderSuccess("Service provider saved.");
+
+      setProviderName("");
+      setCompanyName("");
+      setEmail("");
+      setPhone("");
+      setServiceType("cleaner");
+      setProviderNotes("");
+    } catch {
+      setServiceProviderError("Failed to create service provider.");
+    } finally {
+      setSavingServiceProvider(false);
+    }
+  }
 
   async function handleSaveProperty() {
     setSavingProperty(true);
@@ -421,6 +557,50 @@ export default function HomePage() {
     }
   }
 
+  async function handleAssignCleaningJobProvider(jobId: string, providerId: string | null) {
+    setUpdatingProviderJobId(jobId);
+    setProviderAssignmentError("");
+
+    try {
+      const response = await fetch(`/api/cleaning-jobs/${jobId}/assign-provider`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ providerId }),
+      });
+
+      const data = (await response.json()) as
+        | UpdateCleaningJobStatusResponse
+        | CalendarSyncError;
+
+      if (!response.ok) {
+        setProviderAssignmentError(
+          (data as CalendarSyncError).error || "Failed to assign cleaning job provider."
+        );
+        return;
+      }
+
+      const updatedJob = (data as UpdateCleaningJobStatusResponse).cleaningJob;
+      setCleaningJobs((previous) =>
+        previous.map((job) =>
+          job.id === jobId
+            ? {
+                ...job,
+                ...updatedJob,
+                calendarEvent: updatedJob.calendarEvent ?? job.calendarEvent,
+                assignedProvider: updatedJob.assignedProvider ?? null,
+              }
+            : job
+        )
+      );
+    } catch {
+      setProviderAssignmentError("Failed to assign cleaning job provider.");
+    } finally {
+      setUpdatingProviderJobId("");
+    }
+  }
+
   const selectedProperty = properties.find(
     (property) => property.id === selectedPropertyId
   );
@@ -533,6 +713,86 @@ export default function HomePage() {
           )}
         </section>
 
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-slate-900">Service providers</h3>
+            <button
+              type="button"
+              onClick={() => void loadServiceProviders()}
+              disabled={loadingServiceProviders}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loadingServiceProviders ? "Refreshing..." : "Refresh providers"}
+            </button>
+          </div>
+
+          <ServiceProviderForm
+            providerName={providerName}
+            setProviderName={setProviderName}
+            companyName={companyName}
+            setCompanyName={setCompanyName}
+            email={email}
+            setEmail={setEmail}
+            phone={phone}
+            setPhone={setPhone}
+            serviceType={serviceType}
+            setServiceType={setServiceType}
+            notes={providerNotes}
+            setNotes={setProviderNotes}
+            loading={savingServiceProvider}
+            onSubmit={handleSaveServiceProvider}
+          />
+
+          {loadingServiceProviders ? (
+            <p className="text-sm text-slate-600">Loading service providers...</p>
+          ) : null}
+
+          {serviceProviderError ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {serviceProviderError}
+            </p>
+          ) : null}
+
+          {serviceProviderSuccess ? (
+            <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {serviceProviderSuccess}
+            </p>
+          ) : null}
+
+          {!loadingServiceProviders && serviceProviders.length === 0 ? (
+            <p className="text-sm text-slate-600">No service providers saved yet.</p>
+          ) : null}
+
+          {serviceProviders.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {serviceProviders.map((provider) => (
+                <article
+                  key={provider.id}
+                  className="space-y-1 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  <p className="text-sm font-semibold text-slate-900">{provider.name}</p>
+                  {provider.companyName ? (
+                    <p className="text-sm text-slate-700">Company: {provider.companyName}</p>
+                  ) : null}
+                  <p className="text-sm text-slate-700">Service type: {provider.serviceType}</p>
+                  {provider.email ? (
+                    <p className="text-sm text-slate-700">Email: {provider.email}</p>
+                  ) : null}
+                  {provider.phone ? (
+                    <p className="text-sm text-slate-700">Phone: {provider.phone}</p>
+                  ) : null}
+                  {provider.notes ? (
+                    <p className="text-sm text-slate-700">Notes: {provider.notes}</p>
+                  ) : null}
+                  <p className="text-sm text-slate-700">
+                    Status: {provider.active ? "Active" : "Inactive"}
+                  </p>
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </section>
+
         <section className="space-y-2">
           {selectedProperty ? (
             <p className="text-sm text-slate-700">
@@ -633,6 +893,12 @@ export default function HomePage() {
             </p>
           ) : null}
 
+          {providerAssignmentError ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {providerAssignmentError}
+            </p>
+          ) : null}
+
           {!loadingCleaningJobsPropertyId && !cleaningJobsError && cleaningJobs.length === 0 ? (
             <p className="text-sm text-slate-600">No cleaning jobs generated yet.</p>
           ) : null}
@@ -650,6 +916,9 @@ export default function HomePage() {
                     job={job}
                     onStatusChange={handleUpdateCleaningJobStatus}
                     statusUpdating={updatingCleaningJobId === job.id}
+                    cleanerProviders={cleanerProviders}
+                    onProviderChange={handleAssignCleaningJobProvider}
+                    providerUpdating={updatingProviderJobId === job.id}
                   />
                 ))}
               </div>

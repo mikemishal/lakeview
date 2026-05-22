@@ -48,6 +48,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     const cleaningJob = await prisma.cleaningJob.update({
       where: { id: jobId },
       data: { status },
+      include: {
+        calendarEvent: true,
+        assignedProvider: true,
+      },
     });
 
     return NextResponse.json({ cleaningJob });
