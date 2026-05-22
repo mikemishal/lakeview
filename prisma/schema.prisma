@@ -1,0 +1,61 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Property {
+  id                String          @id @default(cuid())
+  name              String
+  address           String?
+  airbnbCalendarUrl String
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  calendarEvents    CalendarEvent[]
+  cleaningJobs      CleaningJob[]
+}
+
+model CalendarEvent {
+  id           String   @id @default(cuid())
+  propertyId   String
+  property     Property @relation(fields: [propertyId], references: [id])
+  externalId   String
+  summary      String
+  checkInDate  DateTime
+  checkOutDate DateTime
+  nights       Int
+  source       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  cleaningJob  CleaningJob?
+
+  @@unique([propertyId, externalId])
+  @@index([propertyId])
+  @@index([checkInDate])
+}
+
+model CleaningJob {
+  id              String        @id @default(cuid())
+  propertyId      String
+  property        Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  calendarEventId String?       @unique
+  calendarEvent   CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+  title           String
+  scheduledDate   DateTime
+  status          String        @default("needs_assignment")
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([propertyId])
+  @@index([scheduledDate])
+  @@index([status])
+}
