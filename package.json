@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
     "next": "15.3.2",
@@ -15,6 +18,7 @@
     "react-dom": "19.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@prisma/client": "^6.19.3",
     "@tailwindcss/postcss": "^4.3.0",
     "@types/node": "^22.10.2",
