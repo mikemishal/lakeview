@@ -53,6 +53,13 @@ model CleaningJob {
   title           String
   scheduledDate   DateTime
   status          String        @default("needs_assignment")
+  acceptedAt      DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  maintenanceNeeded Boolean      @default(false)
+  restockNeeded     Boolean      @default(false)
+  damageFound       Boolean      @default(false)
   notes           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -61,6 +68,9 @@ model CleaningJob {
   @@index([assignedProviderId])
   @@index([scheduledDate])
   @@index([status])
+  @@index([maintenanceNeeded])
+  @@index([restockNeeded])
+  @@index([damageFound])
 }
 
 model ServiceProvider {

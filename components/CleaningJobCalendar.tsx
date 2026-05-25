@@ -15,6 +15,7 @@ function formatStatusLabel(status: string): string {
   const knownLabels: Record<string, string> = {
     needs_assignment: "Needs assignment",
     assigned: "Assigned",
+    accepted: "Accepted",
     in_progress: "In progress",
     completed: "Completed",
     cancelled: "Cancelled",
@@ -90,16 +91,71 @@ export default function CleaningJobCalendar({ jobs }: CleaningJobCalendarProps) 
             <div className="space-y-3">
               {dayJobs.map((job) => (
                 <article key={job.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  {(() => {
+                    const activeIssueLabels: string[] = [];
+
+                    if (job.maintenanceNeeded) {
+                      activeIssueLabels.push("Maintenance needed");
+                    }
+
+                    if (job.restockNeeded) {
+                      activeIssueLabels.push("Restock needed");
+                    }
+
+                    if (job.damageFound) {
+                      activeIssueLabels.push("Damage found");
+                    }
+
+                    return (
+                      <>
                   <div className="mb-2 flex items-start justify-between gap-3">
-                    <p className="text-sm font-semibold text-slate-900">{job.title}</p>
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-slate-900">{job.title}</p>
+                      {activeIssueLabels.length > 0 ? (
+                        <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                          Issues flagged
+                        </span>
+                      ) : null}
+                    </div>
                     <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium uppercase tracking-wide text-slate-700">
                       {formatStatusLabel(job.status)}
                     </span>
                   </div>
 
+                  {activeIssueLabels.length > 0 ? (
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {activeIssueLabels.map((label) => (
+                        <span
+                          key={label}
+                          className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700"
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+
                   {job.notes ? (
                     <p className="text-sm text-slate-700">{job.notes}</p>
                   ) : null}
+
+                  <div className="mt-2 text-sm text-slate-700">
+                    <p>
+                      <span className="font-medium text-slate-900">Assigned to:</span>{" "}
+                      {job.assignedProvider ? (
+                        <span>
+                          {job.assignedProvider.name}
+                          {job.assignedProvider.companyName ? (
+                            <span className="ml-1 text-xs text-slate-600">
+                              ({job.assignedProvider.companyName})
+                            </span>
+                          ) : null}
+                        </span>
+                      ) : (
+                        <span className="text-slate-500">Unassigned</span>
+                      )}
+                    </p>
+                  </div>
 
                   {job.calendarEvent ? (
                     <div className="mt-2 space-y-1 text-sm text-slate-700">
@@ -114,6 +170,9 @@ export default function CleaningJobCalendar({ jobs }: CleaningJobCalendarProps) 
                       </p>
                     </div>
                   ) : null}
+                      </>
+                    );
+                  })()}
                 </article>
               ))}
             </div>

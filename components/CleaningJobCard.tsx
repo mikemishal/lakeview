@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 export type CleaningJobCalendarEvent = {
   id: string;
   summary: string;
@@ -22,6 +24,13 @@ export type CleaningJobItem = {
   title: string;
   scheduledDate: string;
   status: string;
+  acceptedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  maintenanceNeeded: boolean;
+  restockNeeded: boolean;
+  damageFound: boolean;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -42,11 +51,24 @@ type CleaningJobCardProps = {
   cleanerProviders?: CleanerProviderOption[];
   onProviderChange?: (jobId: string, providerId: string | null) => void;
   providerUpdating?: boolean;
+  showCleanerActions?: boolean;
+  onNotesChange?: (jobId: string, notes: string | null) => void;
+  notesUpdating?: boolean;
+  onIssueFlagsChange?: (
+    jobId: string,
+    flags: {
+      maintenanceNeeded?: boolean;
+      restockNeeded?: boolean;
+      damageFound?: boolean;
+    }
+  ) => void;
+  issueFlagsUpdating?: boolean;
 };
 
 const STATUS_OPTIONS = [
   "needs_assignment",
   "assigned",
+  "accepted",
   "in_progress",
   "completed",
   "cancelled",
@@ -59,10 +81,20 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
+const activityDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: "America/Chicago",
+});
+
 function formatStatusLabel(status: string): string {
   const knownLabels: Record<string, string> = {
     needs_assignment: "Needs assignment",
     assigned: "Assigned",
+    accepted: "Accepted",
     in_progress: "In progress",
     completed: "Completed",
     cancelled: "Cancelled",
@@ -89,6 +121,15 @@ function formatDateLabel(value: string): string {
   return dateFormatter.format(parsed);
 }
 
+function formatActivityDateTimeLabel(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return activityDateTimeFormatter.format(parsed);
+}
+
 export default function CleaningJobCard({
   job,
   onStatusChange,
@@ -96,11 +137,56 @@ export default function CleaningJobCard({
   cleanerProviders = [],
   onProviderChange,
   providerUpdating = false,
+  showCleanerActions = false,
+  onNotesChange,
+  notesUpdating = false,
+  onIssueFlagsChange,
+  issueFlagsUpdating = false,
 }: CleaningJobCardProps) {
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [draftNotes, setDraftNotes] = useState(job.notes ?? "");
+
+  const activityItems = [
+    { label: "Accepted", value: job.acceptedAt },
+    { label: "Started", value: job.startedAt },
+    { label: "Completed", value: job.completedAt },
+    { label: "Cancelled", value: job.cancelledAt },
+  ].filter((item): item is { label: string; value: string } => Boolean(item.value));
+
+  const hasIssuesFlagged =
+    job.maintenanceNeeded || job.restockNeeded || job.damageFound;
+
+  function handleEditNotes() {
+    setDraftNotes(job.notes ?? "");
+    setIsEditingNotes(true);
+  }
+
+  function handleCancelNotes() {
+    setDraftNotes(job.notes ?? "");
+    setIsEditingNotes(false);
+  }
+
+  function handleSaveNotes() {
+    const trimmed = draftNotes.trim();
+
+    if (onNotesChange) {
+      onNotesChange(job.id, trimmed.length === 0 ? null : trimmed);
+    }
+
+    setIsEditingNotes(false);
+  }
+
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-start justify-between gap-3">
-        <h3 className="text-base font-semibold text-slate-900">{job.title}</h3>
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold text-slate-900">{job.title}</h3>
+          {hasIssuesFlagged ? (
+            <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+              Issues flagged
+            </span>
+          ) : null}
+        </div>
         <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium uppercase tracking-wide text-slate-700">
           {formatStatusLabel(job.status)}
         </span>
@@ -180,7 +266,179 @@ export default function CleaningJobCard({
         {statusUpdating ? <p className="text-xs text-slate-500">Updating...</p> : null}
       </div>
 
-      {job.notes ? <p className="mt-2 text-sm text-slate-700">{job.notes}</p> : null}
+      {showCleanerActions ? (
+        <section className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <h4 className="text-sm font-medium text-slate-900">Cleaner actions</h4>
+
+          {job.status === "assigned" ? (
+            <button
+              type="button"
+              onClick={() => onStatusChange?.(job.id, "accepted")}
+              disabled={statusUpdating || !onStatusChange}
+              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Accept job
+            </button>
+          ) : null}
+
+          {job.status === "accepted" ? (
+            <button
+              type="button"
+              onClick={() => onStatusChange?.(job.id, "in_progress")}
+              disabled={statusUpdating || !onStatusChange}
+              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Start job
+            </button>
+          ) : null}
+
+          {job.status === "in_progress" ? (
+            <button
+              type="button"
+              onClick={() => onStatusChange?.(job.id, "completed")}
+              disabled={statusUpdating || !onStatusChange}
+              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Complete job
+            </button>
+          ) : null}
+
+          {job.status === "completed" ? (
+            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
+              Job completed
+            </span>
+          ) : null}
+
+          {job.status === "needs_assignment" ? (
+            <p className="text-xs text-slate-600">
+              Assign a cleaner before actions are available.
+            </p>
+          ) : null}
+
+          {job.status === "cancelled" ? (
+            <p className="text-xs text-slate-600">This job is cancelled.</p>
+          ) : null}
+        </section>
+      ) : null}
+
+      <section className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <h4 className="text-sm font-medium text-slate-900">Issue flags</h4>
+
+        <div className="space-y-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={job.maintenanceNeeded}
+              disabled={issueFlagsUpdating}
+              onChange={(event) =>
+                onIssueFlagsChange?.(job.id, {
+                  maintenanceNeeded: event.target.checked,
+                })
+              }
+              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 disabled:cursor-not-allowed"
+            />
+            <span>Maintenance needed</span>
+          </label>
+
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={job.restockNeeded}
+              disabled={issueFlagsUpdating}
+              onChange={(event) =>
+                onIssueFlagsChange?.(job.id, {
+                  restockNeeded: event.target.checked,
+                })
+              }
+              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 disabled:cursor-not-allowed"
+            />
+            <span>Restock needed</span>
+          </label>
+
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={job.damageFound}
+              disabled={issueFlagsUpdating}
+              onChange={(event) =>
+                onIssueFlagsChange?.(job.id, {
+                  damageFound: event.target.checked,
+                })
+              }
+              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 disabled:cursor-not-allowed"
+            />
+            <span>Damage found</span>
+          </label>
+        </div>
+
+        {issueFlagsUpdating ? (
+          <p className="text-xs text-slate-500">Updating issue flags...</p>
+        ) : null}
+      </section>
+
+      <section className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-medium text-slate-900">Notes</h4>
+          {!isEditingNotes ? (
+            <button
+              type="button"
+              onClick={handleEditNotes}
+              disabled={notesUpdating}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {job.notes ? "Edit notes" : "Add notes"}
+            </button>
+          ) : null}
+        </div>
+
+        {!isEditingNotes ? (
+          job.notes ? <p className="text-sm text-slate-700">{job.notes}</p> : null
+        ) : (
+          <div className="space-y-2">
+            <textarea
+              value={draftNotes}
+              onChange={(event) => setDraftNotes(event.target.value)}
+              rows={3}
+              disabled={notesUpdating}
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+            />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleSaveNotes}
+                disabled={notesUpdating}
+                className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Save notes
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelNotes}
+                disabled={notesUpdating}
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {notesUpdating ? <p className="text-xs text-slate-500">Saving notes...</p> : null}
+      </section>
+
+      {activityItems.length > 0 ? (
+        <section className="mt-3 space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <h4 className="text-sm font-medium text-slate-900">Activity</h4>
+          <div className="space-y-1 text-sm text-slate-700">
+            {activityItems.map((item) => (
+              <p key={item.label}>
+                <span className="font-medium text-slate-900">{item.label}:</span>{" "}
+                {formatActivityDateTimeLabel(item.value)}
+              </p>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {job.calendarEvent ? (
         <div className="mt-3 space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3">

@@ -12,6 +12,7 @@ type UpdateStatusBody = {
 const ALLOWED_STATUSES = [
   "needs_assignment",
   "assigned",
+  "accepted",
   "in_progress",
   "completed",
   "cancelled",
@@ -45,9 +46,48 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
+    const now = new Date();
+    const updateData: {
+      status: string;
+      acceptedAt?: Date;
+      startedAt?: Date;
+      completedAt?: Date;
+      cancelledAt?: Date;
+    } = {
+      status,
+    };
+
+    if (status === "accepted") {
+      updateData.acceptedAt = now;
+    }
+
+    if (status === "in_progress") {
+      updateData.startedAt = now;
+
+      if (!existingJob.acceptedAt) {
+        updateData.acceptedAt = now;
+      }
+    }
+
+    if (status === "completed") {
+      updateData.completedAt = now;
+
+      if (!existingJob.acceptedAt) {
+        updateData.acceptedAt = now;
+      }
+
+      if (!existingJob.startedAt) {
+        updateData.startedAt = now;
+      }
+    }
+
+    if (status === "cancelled") {
+      updateData.cancelledAt = now;
+    }
+
     const cleaningJob = await prisma.cleaningJob.update({
       where: { id: jobId },
-      data: { status },
+      data: updateData,
       include: {
         calendarEvent: true,
         assignedProvider: true,

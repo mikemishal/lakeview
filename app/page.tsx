@@ -6,6 +6,7 @@ import CalendarSyncForm from "@/components/CalendarSyncForm";
 import CalendarEventCard from "@/components/CalendarEventCard";
 import CleaningJobCard, { type CleaningJobItem } from "@/components/CleaningJobCard";
 import CleaningJobCalendar from "@/components/CleaningJobCalendar";
+import CleanerSchedule, { type CleanerScheduleJob } from "@/components/CleanerSchedule";
 import ServiceProviderForm from "@/components/ServiceProviderForm";
 import EmptyState from "@/components/EmptyState";
 import {
@@ -65,6 +66,18 @@ type UpdateCleaningJobStatusResponse = {
   cleaningJob: CleaningJobItem;
 };
 
+type UpdateCleaningJobNotesResponse = {
+  cleaningJob: CleaningJobItem & {
+    property: CleanerScheduleJob["property"];
+  };
+};
+
+type UpdateCleaningJobIssueFlagsResponse = {
+  cleaningJob: CleaningJobItem & {
+    property: CleanerScheduleJob["property"];
+  };
+};
+
 type ServiceProvider = {
   id: string;
   name: string;
@@ -84,6 +97,10 @@ type ServiceProvidersResponse = {
 
 type SaveServiceProviderResponse = {
   serviceProvider: ServiceProvider;
+};
+
+type ServiceProviderCleaningJobsResponse = {
+  cleaningJobs: CleanerScheduleJob[];
 };
 
 function toDateOnly(value: string): string {
@@ -129,6 +146,7 @@ export default function HomePage() {
   const [cleaningJobGenerationMessage, setCleaningJobGenerationMessage] = useState("");
   const [cleaningJobsView, setCleaningJobsView] = useState<"list" | "calendar">("calendar");
   const [cleaningJobStatusFilter, setCleaningJobStatusFilter] = useState("all");
+  const [cleaningJobProviderFilter, setCleaningJobProviderFilter] = useState("all");
   const [showManualSync, setShowManualSync] = useState(false);
 
   const [serviceProviders, setServiceProviders] = useState<ServiceProvider[]>([]);
@@ -146,6 +164,17 @@ export default function HomePage() {
 
   const [updatingProviderJobId, setUpdatingProviderJobId] = useState("");
   const [providerAssignmentError, setProviderAssignmentError] = useState("");
+  const [selectedCleanerScheduleProviderId, setSelectedCleanerScheduleProviderId] =
+    useState("");
+  const [cleanerScheduleJobs, setCleanerScheduleJobs] = useState<CleanerScheduleJob[]>([]);
+  const [loadingCleanerSchedule, setLoadingCleanerSchedule] = useState(false);
+  const [cleanerScheduleError, setCleanerScheduleError] = useState("");
+  const [updatingCleanerScheduleJobId, setUpdatingCleanerScheduleJobId] = useState("");
+  const [cleanerScheduleStatusError, setCleanerScheduleStatusError] = useState("");
+  const [updatingNotesJobId, setUpdatingNotesJobId] = useState("");
+  const [cleaningJobNotesError, setCleaningJobNotesError] = useState("");
+  const [updatingIssueFlagsJobId, setUpdatingIssueFlagsJobId] = useState("");
+  const [cleaningJobIssueFlagsError, setCleaningJobIssueFlagsError] = useState("");
 
   const cleanerProviders = serviceProviders
     .filter((provider) => provider.serviceType === "cleaner" && provider.active)
@@ -155,10 +184,23 @@ export default function HomePage() {
       companyName: provider.companyName,
     }));
 
-  const filteredCleaningJobs =
-    cleaningJobStatusFilter === "all"
-      ? cleaningJobs
-      : cleaningJobs.filter((job) => job.status === cleaningJobStatusFilter);
+  const filteredCleaningJobs = (() => {
+    let result = cleaningJobs;
+
+    // Apply status filter
+    if (cleaningJobStatusFilter !== "all") {
+      result = result.filter((job) => job.status === cleaningJobStatusFilter);
+    }
+
+    // Apply provider filter
+    if (cleaningJobProviderFilter === "unassigned") {
+      result = result.filter((job) => job.assignedProviderId === null);
+    } else if (cleaningJobProviderFilter !== "all") {
+      result = result.filter((job) => job.assignedProviderId === cleaningJobProviderFilter);
+    }
+
+    return result;
+  })();
 
   const loadCleaningJobsForProperty = useCallback(async (property: SavedProperty) => {
     setLoadingCleaningJobsPropertyId(property.id);
@@ -601,6 +643,220 @@ export default function HomePage() {
     }
   }
 
+  async function handleLoadCleanerSchedule(providerId: string) {
+    setSelectedCleanerScheduleProviderId(providerId);
+    setLoadingCleanerSchedule(true);
+    setCleanerScheduleError("");
+    setCleanerScheduleJobs([]);
+
+    if (!providerId) {
+      setLoadingCleanerSchedule(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/service-providers/${providerId}/cleaning-jobs`);
+      const data = (await response.json()) as
+        | ServiceProviderCleaningJobsResponse
+        | CalendarSyncError;
+
+      if (!response.ok) {
+        setCleanerScheduleError(
+          (data as CalendarSyncError).error || "Failed to load assigned cleaning jobs."
+        );
+        return;
+      }
+
+      setCleanerScheduleJobs((data as ServiceProviderCleaningJobsResponse).cleaningJobs);
+    } catch {
+      setCleanerScheduleError("Failed to load assigned cleaning jobs.");
+    } finally {
+      setLoadingCleanerSchedule(false);
+    }
+  }
+
+  async function handleUpdateCleanerScheduleJobStatus(jobId: string, status: string) {
+    setUpdatingCleanerScheduleJobId(jobId);
+    setCleanerScheduleStatusError("");
+
+    try {
+      const response = await fetch(`/api/cleaning-jobs/${jobId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status }),
+      });
+
+      const data = (await response.json()) as
+        | UpdateCleaningJobStatusResponse
+        | CalendarSyncError;
+
+      if (!response.ok) {
+        setCleanerScheduleStatusError(
+          (data as CalendarSyncError).error || "Failed to update cleaning job status."
+        );
+        return;
+      }
+
+      const updatedJob = (data as UpdateCleaningJobStatusResponse).cleaningJob;
+
+      setCleanerScheduleJobs((previous) =>
+        previous.map((job) =>
+          job.id === jobId
+            ? {
+                ...job,
+                ...updatedJob,
+                property: job.property,
+                calendarEvent: updatedJob.calendarEvent ?? job.calendarEvent,
+              }
+            : job
+        )
+      );
+
+      setCleaningJobs((previous) =>
+        previous.map((job) =>
+          job.id === jobId
+            ? {
+                ...job,
+                ...updatedJob,
+                calendarEvent: updatedJob.calendarEvent ?? job.calendarEvent,
+                assignedProvider: updatedJob.assignedProvider ?? job.assignedProvider,
+              }
+            : job
+        )
+      );
+    } catch {
+      setCleanerScheduleStatusError("Failed to update cleaning job status.");
+    } finally {
+      setUpdatingCleanerScheduleJobId("");
+    }
+  }
+
+  async function handleUpdateCleaningJobNotes(jobId: string, notes: string | null) {
+    setUpdatingNotesJobId(jobId);
+    setCleaningJobNotesError("");
+
+    try {
+      const response = await fetch(`/api/cleaning-jobs/${jobId}/notes`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ notes }),
+      });
+
+      const data = (await response.json()) as
+        | UpdateCleaningJobNotesResponse
+        | CalendarSyncError;
+
+      if (!response.ok) {
+        setCleaningJobNotesError(
+          (data as CalendarSyncError).error || "Failed to update cleaning job notes."
+        );
+        return;
+      }
+
+      const updatedJob = (data as UpdateCleaningJobNotesResponse).cleaningJob;
+
+      setCleaningJobs((previous) =>
+        previous.map((job) =>
+          job.id === jobId
+            ? {
+                ...job,
+                ...updatedJob,
+                calendarEvent: updatedJob.calendarEvent ?? job.calendarEvent,
+                assignedProvider: updatedJob.assignedProvider ?? job.assignedProvider,
+              }
+            : job
+        )
+      );
+
+      setCleanerScheduleJobs((previous) =>
+        previous.map((job) =>
+          job.id === jobId
+            ? {
+                ...job,
+                ...updatedJob,
+                property: updatedJob.property ?? job.property,
+                calendarEvent: updatedJob.calendarEvent ?? job.calendarEvent,
+              }
+            : job
+        )
+      );
+    } catch {
+      setCleaningJobNotesError("Failed to update cleaning job notes.");
+    } finally {
+      setUpdatingNotesJobId("");
+    }
+  }
+
+  async function handleUpdateCleaningJobIssueFlags(
+    jobId: string,
+    flags: {
+      maintenanceNeeded?: boolean;
+      restockNeeded?: boolean;
+      damageFound?: boolean;
+    }
+  ) {
+    setUpdatingIssueFlagsJobId(jobId);
+    setCleaningJobIssueFlagsError("");
+
+    try {
+      const response = await fetch(`/api/cleaning-jobs/${jobId}/issue-flags`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(flags),
+      });
+
+      const data = (await response.json()) as
+        | UpdateCleaningJobIssueFlagsResponse
+        | CalendarSyncError;
+
+      if (!response.ok) {
+        setCleaningJobIssueFlagsError(
+          (data as CalendarSyncError).error ||
+            "Failed to update cleaning job issue flags."
+        );
+        return;
+      }
+
+      const updatedJob = (data as UpdateCleaningJobIssueFlagsResponse).cleaningJob;
+
+      setCleaningJobs((previous) =>
+        previous.map((job) =>
+          job.id === jobId
+            ? {
+                ...job,
+                ...updatedJob,
+                calendarEvent: updatedJob.calendarEvent ?? job.calendarEvent,
+                assignedProvider: updatedJob.assignedProvider ?? job.assignedProvider,
+              }
+            : job
+        )
+      );
+
+      setCleanerScheduleJobs((previous) =>
+        previous.map((job) =>
+          job.id === jobId
+            ? {
+                ...job,
+                ...updatedJob,
+                property: updatedJob.property ?? job.property,
+                calendarEvent: updatedJob.calendarEvent ?? job.calendarEvent,
+              }
+            : job
+        )
+      );
+    } catch {
+      setCleaningJobIssueFlagsError("Failed to update cleaning job issue flags.");
+    } finally {
+      setUpdatingIssueFlagsJobId("");
+    }
+  }
+
   const selectedProperty = properties.find(
     (property) => property.id === selectedPropertyId
   );
@@ -841,9 +1097,28 @@ export default function HomePage() {
                 <option value="all">All</option>
                 <option value="needs_assignment">Needs assignment</option>
                 <option value="assigned">Assigned</option>
+                <option value="accepted">Accepted</option>
                 <option value="in_progress">In progress</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
+              </select>
+
+              <label htmlFor="cleaningJobProviderFilter" className="text-sm text-slate-700">
+                Cleaner
+              </label>
+              <select
+                id="cleaningJobProviderFilter"
+                value={cleaningJobProviderFilter}
+                onChange={(event) => setCleaningJobProviderFilter(event.target.value)}
+                className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-slate-500"
+              >
+                <option value="all">All cleaners</option>
+                <option value="unassigned">Unassigned</option>
+                {cleanerProviders.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.companyName ? `${provider.name} (${provider.companyName})` : provider.name}
+                  </option>
+                ))}
               </select>
 
               <button
@@ -899,6 +1174,18 @@ export default function HomePage() {
             </p>
           ) : null}
 
+          {cleaningJobNotesError ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {cleaningJobNotesError}
+            </p>
+          ) : null}
+
+          {cleaningJobIssueFlagsError ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {cleaningJobIssueFlagsError}
+            </p>
+          ) : null}
+
           {!loadingCleaningJobsPropertyId && !cleaningJobsError && cleaningJobs.length === 0 ? (
             <p className="text-sm text-slate-600">No cleaning jobs generated yet.</p>
           ) : null}
@@ -919,12 +1206,77 @@ export default function HomePage() {
                     cleanerProviders={cleanerProviders}
                     onProviderChange={handleAssignCleaningJobProvider}
                     providerUpdating={updatingProviderJobId === job.id}
+                    showCleanerActions={true}
+                    onNotesChange={handleUpdateCleaningJobNotes}
+                    notesUpdating={updatingNotesJobId === job.id}
+                    onIssueFlagsChange={handleUpdateCleaningJobIssueFlags}
+                    issueFlagsUpdating={updatingIssueFlagsJobId === job.id}
                   />
                 ))}
               </div>
             ) : (
               <CleaningJobCalendar jobs={filteredCleaningJobs} />
             )
+          ) : null}
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold text-slate-900">Cleaner schedule preview</h3>
+          <p className="text-sm text-slate-600">
+            Select a cleaner to preview their assigned cleaning schedule.
+          </p>
+
+          <div className="max-w-sm space-y-1">
+            <label htmlFor="cleanerScheduleProvider" className="block text-sm font-medium text-slate-700">
+              Cleaner
+            </label>
+            <select
+              id="cleanerScheduleProvider"
+              value={selectedCleanerScheduleProviderId}
+              onChange={(event) => {
+                void handleLoadCleanerSchedule(event.target.value);
+              }}
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500"
+            >
+              <option value="">Select cleaner</option>
+              {cleanerProviders.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.companyName
+                    ? `${provider.name} (${provider.companyName})`
+                    : provider.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {loadingCleanerSchedule ? (
+            <p className="text-sm text-slate-600">Loading cleaner schedule...</p>
+          ) : null}
+
+          {cleanerScheduleError ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {cleanerScheduleError}
+            </p>
+          ) : null}
+
+          {cleanerScheduleStatusError ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {cleanerScheduleStatusError}
+            </p>
+          ) : null}
+
+          {selectedCleanerScheduleProviderId && !loadingCleanerSchedule ? (
+            <CleanerSchedule
+              jobs={cleanerScheduleJobs}
+              onStatusChange={handleUpdateCleanerScheduleJobStatus}
+              statusUpdatingJobId={updatingCleanerScheduleJobId}
+              onNotesChange={handleUpdateCleaningJobNotes}
+              notesUpdatingJobId={updatingNotesJobId}
+            />
+          ) : null}
+
+          {!selectedCleanerScheduleProviderId ? (
+            <p className="text-sm text-slate-600">Select a cleaner to view their assigned jobs.</p>
           ) : null}
         </section>
 
