@@ -12,6 +12,7 @@ type UpdateStatusBody = {
 const ALLOWED_STATUSES = [
   "needs_assignment",
   "assigned",
+  "declined",
   "accepted",
   "in_progress",
   "completed",
@@ -49,6 +50,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const now = new Date();
     const updateData: {
       status: string;
+      assignedProviderId?: string | null;
       acceptedAt?: Date;
       startedAt?: Date;
       completedAt?: Date;
@@ -59,6 +61,10 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (status === "accepted") {
       updateData.acceptedAt = now;
+    }
+
+    if (status === "declined") {
+      updateData.assignedProviderId = null;
     }
 
     if (status === "in_progress") {

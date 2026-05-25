@@ -11,6 +11,17 @@ type CleanerScheduleCalendarEvent = {
   summary: string;
   checkInDate: string;
   checkOutDate: string;
+  nights: number;
+  source: string;
+};
+
+type CleanerScheduleAssignedProvider = {
+  id: string;
+  name: string;
+  companyName: string | null;
+  email: string | null;
+  phone: string | null;
+  serviceType: string;
 };
 
 export type CleanerScheduleJob = {
@@ -21,6 +32,8 @@ export type CleanerScheduleJob = {
   title: string;
   scheduledDate: string;
   status: string;
+  sourcePlatform: string;
+  cleaningType: string;
   acceptedAt: string | null;
   startedAt: string | null;
   completedAt: string | null;
@@ -33,6 +46,7 @@ export type CleanerScheduleJob = {
   updatedAt: string;
   property: CleanerScheduleProperty;
   calendarEvent: CleanerScheduleCalendarEvent | null;
+  assignedProvider?: CleanerScheduleAssignedProvider | null;
 };
 
 type CleanerScheduleProps = {
@@ -41,6 +55,15 @@ type CleanerScheduleProps = {
   statusUpdatingJobId?: string;
   onNotesChange?: (jobId: string, notes: string | null) => void;
   notesUpdatingJobId?: string;
+  onIssueFlagsChange?: (
+    jobId: string,
+    flags: {
+      maintenanceNeeded?: boolean;
+      restockNeeded?: boolean;
+      damageFound?: boolean;
+    }
+  ) => void;
+  issueFlagsUpdatingJobId?: string;
 };
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -63,6 +86,7 @@ function formatStatusLabel(status: string): string {
   const knownLabels: Record<string, string> = {
     needs_assignment: "Needs assignment",
     assigned: "Assigned",
+    declined: "Declined",
     accepted: "Accepted",
     in_progress: "In progress",
     completed: "Completed",
@@ -79,6 +103,41 @@ function formatStatusLabel(status: string): string {
   }
 
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function formatCleaningTypeLabel(cleaningType: string): string {
+  const knownLabels: Record<string, string> = {
+    checkout_cleaning: "Checkout cleaning",
+    turnover_cleaning: "Turnover cleaning",
+  };
+
+  if (knownLabels[cleaningType]) {
+    return knownLabels[cleaningType];
+  }
+
+  const normalized = cleaningType.replace(/_/g, " ").trim();
+  if (!normalized) {
+    return "Cleaning";
+  }
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function formatSourcePlatformLabel(sourcePlatform: string): string {
+  const normalized = sourcePlatform.trim().toLowerCase();
+  if (!normalized) {
+    return "Unknown";
+  }
+
+  if (normalized === "airbnb") {
+    return "Airbnb";
+  }
+
+  return normalized
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
 }
 
 function toDateOnly(value: string): string {
@@ -119,6 +178,8 @@ export default function CleanerSchedule({
   statusUpdatingJobId = "",
   onNotesChange,
   notesUpdatingJobId = "",
+  onIssueFlagsChange,
+  issueFlagsUpdatingJobId = "",
 }: CleanerScheduleProps) {
   const [editingNotesJobId, setEditingNotesJobId] = useState("");
   const [draftNotes, setDraftNotes] = useState("");
@@ -184,6 +245,14 @@ export default function CleanerSchedule({
                   <div className="mb-2 flex items-start justify-between gap-3">
                     <div className="space-y-1">
                       <p className="text-sm font-semibold text-slate-900">{job.title}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                          {formatCleaningTypeLabel(job.cleaningType)}
+                        </span>
+                        <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                          {formatSourcePlatformLabel(job.sourcePlatform)}
+                        </span>
+                      </div>
                       {activeIssueLabels.length > 0 ? (
                         <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                           Issues flagged
@@ -285,19 +354,84 @@ export default function CleanerSchedule({
                     ) : null}
                   </section>
 
+                  <section className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-white p-3">
+                    <h4 className="text-sm font-medium text-slate-900">Issue flags</h4>
+
+                    <div className="space-y-2 text-sm text-slate-700">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={job.maintenanceNeeded}
+                          onChange={(event) =>
+                            onIssueFlagsChange?.(job.id, {
+                              maintenanceNeeded: event.target.checked,
+                            })
+                          }
+                          disabled={issueFlagsUpdatingJobId === job.id}
+                          className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        />
+                        Maintenance needed
+                      </label>
+
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={job.restockNeeded}
+                          onChange={(event) =>
+                            onIssueFlagsChange?.(job.id, {
+                              restockNeeded: event.target.checked,
+                            })
+                          }
+                          disabled={issueFlagsUpdatingJobId === job.id}
+                          className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        />
+                        Restock needed
+                      </label>
+
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={job.damageFound}
+                          onChange={(event) =>
+                            onIssueFlagsChange?.(job.id, {
+                              damageFound: event.target.checked,
+                            })
+                          }
+                          disabled={issueFlagsUpdatingJobId === job.id}
+                          className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        />
+                        Damage found
+                      </label>
+                    </div>
+
+                    {issueFlagsUpdatingJobId === job.id ? (
+                      <p className="text-xs text-slate-500">Updating issue flags...</p>
+                    ) : null}
+                  </section>
+
                   {(onStatusChange || job.status === "completed" || job.status === "cancelled") ? (
                     <section className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-white p-3">
                       <h4 className="text-sm font-medium text-slate-900">Cleaner actions</h4>
 
                       {onStatusChange && job.status === "assigned" ? (
-                        <button
-                          type="button"
-                          onClick={() => onStatusChange(job.id, "accepted")}
-                          disabled={statusUpdatingJobId === job.id}
-                          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Accept job
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onStatusChange(job.id, "accepted")}
+                            disabled={statusUpdatingJobId === job.id}
+                            className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Accept job
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onStatusChange(job.id, "declined")}
+                            disabled={statusUpdatingJobId === job.id}
+                            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Decline job
+                          </button>
+                        </div>
                       ) : null}
 
                       {onStatusChange && job.status === "accepted" ? (
@@ -332,6 +466,10 @@ export default function CleanerSchedule({
                         <p className="text-xs text-slate-600">This job is cancelled.</p>
                       ) : null}
 
+                      {job.status === "declined" ? (
+                        <p className="text-xs text-slate-600">This job was declined.</p>
+                      ) : null}
+
                       {statusUpdatingJobId === job.id ? (
                         <p className="text-xs text-slate-500">Updating...</p>
                       ) : null}
@@ -354,14 +492,16 @@ export default function CleanerSchedule({
 
                   {job.calendarEvent ? (
                     <div className="mt-2 space-y-1 text-sm text-slate-700">
-                      <p className="font-medium text-slate-900">{job.calendarEvent.summary}</p>
                       <p>
-                        <span className="font-medium text-slate-900">Check-in:</span>{" "}
-                        {formatDateLabel(job.calendarEvent.checkInDate)}
+                        <span className="font-medium text-slate-900">Stay:</span>{" "}
+                        {formatDateLabel(job.calendarEvent.checkInDate)} {"→"} {formatDateLabel(job.calendarEvent.checkOutDate)}
                       </p>
                       <p>
-                        <span className="font-medium text-slate-900">Check-out:</span>{" "}
-                        {formatDateLabel(job.calendarEvent.checkOutDate)}
+                        <span className="font-medium text-slate-900">Nights:</span> {job.calendarEvent.nights}
+                      </p>
+                      <p>
+                        <span className="font-medium text-slate-900">Calendar event:</span>{" "}
+                        {job.calendarEvent.summary}
                       </p>
                     </div>
                   ) : null}

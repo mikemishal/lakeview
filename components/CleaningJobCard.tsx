@@ -5,6 +5,8 @@ export type CleaningJobCalendarEvent = {
   summary: string;
   checkInDate: string;
   checkOutDate: string;
+  nights: number;
+  source: string;
 };
 
 type AssignedProvider = {
@@ -24,6 +26,8 @@ export type CleaningJobItem = {
   title: string;
   scheduledDate: string;
   status: string;
+  sourcePlatform: string;
+  cleaningType: string;
   acceptedAt: string | null;
   startedAt: string | null;
   completedAt: string | null;
@@ -68,6 +72,7 @@ type CleaningJobCardProps = {
 const STATUS_OPTIONS = [
   "needs_assignment",
   "assigned",
+  "declined",
   "accepted",
   "in_progress",
   "completed",
@@ -94,6 +99,7 @@ function formatStatusLabel(status: string): string {
   const knownLabels: Record<string, string> = {
     needs_assignment: "Needs assignment",
     assigned: "Assigned",
+    declined: "Declined",
     accepted: "Accepted",
     in_progress: "In progress",
     completed: "Completed",
@@ -110,6 +116,41 @@ function formatStatusLabel(status: string): string {
   }
 
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function formatCleaningTypeLabel(cleaningType: string): string {
+  const knownLabels: Record<string, string> = {
+    checkout_cleaning: "Checkout cleaning",
+    turnover_cleaning: "Turnover cleaning",
+  };
+
+  if (knownLabels[cleaningType]) {
+    return knownLabels[cleaningType];
+  }
+
+  const normalized = cleaningType.replace(/_/g, " ").trim();
+  if (!normalized) {
+    return "Cleaning";
+  }
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function formatSourcePlatformLabel(sourcePlatform: string): string {
+  const normalized = sourcePlatform.trim().toLowerCase();
+  if (!normalized) {
+    return "Unknown";
+  }
+
+  if (normalized === "airbnb") {
+    return "Airbnb";
+  }
+
+  return normalized
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
 }
 
 function formatDateLabel(value: string): string {
@@ -181,6 +222,14 @@ export default function CleaningJobCard({
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="space-y-1">
           <h3 className="text-base font-semibold text-slate-900">{job.title}</h3>
+          <div className="flex flex-wrap gap-1.5">
+            <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+              {formatCleaningTypeLabel(job.cleaningType)}
+            </span>
+            <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+              {formatSourcePlatformLabel(job.sourcePlatform)}
+            </span>
+          </div>
           {hasIssuesFlagged ? (
             <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
               Issues flagged
@@ -271,14 +320,24 @@ export default function CleaningJobCard({
           <h4 className="text-sm font-medium text-slate-900">Cleaner actions</h4>
 
           {job.status === "assigned" ? (
-            <button
-              type="button"
-              onClick={() => onStatusChange?.(job.id, "accepted")}
-              disabled={statusUpdating || !onStatusChange}
-              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Accept job
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => onStatusChange?.(job.id, "accepted")}
+                disabled={statusUpdating || !onStatusChange}
+                className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Accept job
+              </button>
+              <button
+                type="button"
+                onClick={() => onStatusChange?.(job.id, "declined")}
+                disabled={statusUpdating || !onStatusChange}
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Decline job
+              </button>
+            </div>
           ) : null}
 
           {job.status === "accepted" ? (
@@ -317,6 +376,10 @@ export default function CleaningJobCard({
 
           {job.status === "cancelled" ? (
             <p className="text-xs text-slate-600">This job is cancelled.</p>
+          ) : null}
+
+          {job.status === "declined" ? (
+            <p className="text-xs text-slate-600">This job was declined and needs reassignment.</p>
           ) : null}
         </section>
       ) : null}
@@ -442,14 +505,15 @@ export default function CleaningJobCard({
 
       {job.calendarEvent ? (
         <div className="mt-3 space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="text-sm font-medium text-slate-900">{job.calendarEvent.summary}</p>
           <p className="text-sm text-slate-700">
-            <span className="font-medium text-slate-900">Check-in:</span>{" "}
-            {formatDateLabel(job.calendarEvent.checkInDate)}
+            <span className="font-medium text-slate-900">Stay:</span>{" "}
+            {formatDateLabel(job.calendarEvent.checkInDate)} {"→"} {formatDateLabel(job.calendarEvent.checkOutDate)}
           </p>
           <p className="text-sm text-slate-700">
-            <span className="font-medium text-slate-900">Check-out:</span>{" "}
-            {formatDateLabel(job.calendarEvent.checkOutDate)}
+            <span className="font-medium text-slate-900">Nights:</span> {job.calendarEvent.nights}
+          </p>
+          <p className="text-sm text-slate-700">
+            <span className="font-medium text-slate-900">Calendar event:</span> {job.calendarEvent.summary}
           </p>
         </div>
       ) : null}

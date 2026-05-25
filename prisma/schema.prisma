@@ -53,6 +53,8 @@ model CleaningJob {
   title           String
   scheduledDate   DateTime
   status          String        @default("needs_assignment")
+  sourcePlatform  String        @default("airbnb")
+  cleaningType    String        @default("checkout_cleaning")
   acceptedAt      DateTime?
   startedAt       DateTime?
   completedAt     DateTime?

@@ -15,6 +15,7 @@ function formatStatusLabel(status: string): string {
   const knownLabels: Record<string, string> = {
     needs_assignment: "Needs assignment",
     assigned: "Assigned",
+    declined: "Declined",
     accepted: "Accepted",
     in_progress: "In progress",
     completed: "Completed",
@@ -31,6 +32,41 @@ function formatStatusLabel(status: string): string {
   }
 
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function formatCleaningTypeLabel(cleaningType: string): string {
+  const knownLabels: Record<string, string> = {
+    checkout_cleaning: "Checkout cleaning",
+    turnover_cleaning: "Turnover cleaning",
+  };
+
+  if (knownLabels[cleaningType]) {
+    return knownLabels[cleaningType];
+  }
+
+  const normalized = cleaningType.replace(/_/g, " ").trim();
+  if (!normalized) {
+    return "Cleaning";
+  }
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function formatSourcePlatformLabel(sourcePlatform: string): string {
+  const normalized = sourcePlatform.trim().toLowerCase();
+  if (!normalized) {
+    return "Unknown";
+  }
+
+  if (normalized === "airbnb") {
+    return "Airbnb";
+  }
+
+  return normalized
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
 }
 
 function toDateOnly(value: string): string {
@@ -111,6 +147,14 @@ export default function CleaningJobCalendar({ jobs }: CleaningJobCalendarProps) 
                   <div className="mb-2 flex items-start justify-between gap-3">
                     <div className="space-y-1">
                       <p className="text-sm font-semibold text-slate-900">{job.title}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                          {formatCleaningTypeLabel(job.cleaningType)}
+                        </span>
+                        <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                          {formatSourcePlatformLabel(job.sourcePlatform)}
+                        </span>
+                      </div>
                       {activeIssueLabels.length > 0 ? (
                         <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                           Issues flagged
@@ -159,14 +203,16 @@ export default function CleaningJobCalendar({ jobs }: CleaningJobCalendarProps) 
 
                   {job.calendarEvent ? (
                     <div className="mt-2 space-y-1 text-sm text-slate-700">
-                      <p className="font-medium text-slate-900">{job.calendarEvent.summary}</p>
                       <p>
-                        <span className="font-medium text-slate-900">Check-in:</span>{" "}
-                        {formatDateLabel(job.calendarEvent.checkInDate)}
+                        <span className="font-medium text-slate-900">Stay:</span>{" "}
+                        {formatDateLabel(job.calendarEvent.checkInDate)} {"→"} {formatDateLabel(job.calendarEvent.checkOutDate)}
                       </p>
                       <p>
-                        <span className="font-medium text-slate-900">Check-out:</span>{" "}
-                        {formatDateLabel(job.calendarEvent.checkOutDate)}
+                        <span className="font-medium text-slate-900">Nights:</span> {job.calendarEvent.nights}
+                      </p>
+                      <p>
+                        <span className="font-medium text-slate-900">Calendar event:</span>{" "}
+                        {job.calendarEvent.summary}
                       </p>
                     </div>
                   ) : null}
