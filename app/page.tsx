@@ -1,41 +1,118 @@
 import Link from "next/link";
+import {
+  Show,
+  SignInButton,
+  SignUpButton,
+  UserButton,
+} from "@clerk/nextjs";
 
-export default function HomePage() {
+export default function Home() {
   return (
-    <main className="mx-auto min-h-screen w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
-      <section className="space-y-4">
-        <p className="text-sm font-medium uppercase tracking-wide text-slate-500">Project Lakeview</p>
-        <h1 className="text-4xl font-semibold tracking-tight text-slate-900">Operations Dashboard</h1>
-        <p className="max-w-3xl text-sm text-slate-600 sm:text-base">
-          Short-term rental operations dashboard for Airbnb calendar sync, cleaning jobs, and provider workflows.
-        </p>
-      </section>
+    <main className="min-h-screen bg-slate-950 px-6 py-12 text-white">
+      <div className="mx-auto flex max-w-5xl flex-col gap-10">
+        <header className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">
+              Project Lakeview
+            </p>
+            <h1 className="mt-3 text-4xl font-bold tracking-tight">
+              Short-term rental operations dashboard
+            </h1>
+            <p className="mt-4 max-w-2xl text-base text-slate-300">
+              Manage Airbnb calendar sync, cleaning jobs, provider workflows,
+              notifications, and owner/provider operations.
+            </p>
+          </div>
 
-      <section className="mt-8 grid gap-4 md:grid-cols-2">
-        <Link
-          href="/owner"
-          className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-slate-300 hover:shadow"
-        >
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Owner</p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-900">Owner Dashboard</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Manage properties, sync Airbnb calendars, generate cleaning jobs, and coordinate providers.
-          </p>
-          <p className="mt-4 text-sm font-medium text-slate-900 group-hover:underline">Go to Owner Dashboard</p>
-        </Link>
+          <Show when="signed-in">
+            <UserButton />
+          </Show>
+        </header>
 
-        <Link
-          href="/provider"
-          className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-slate-300 hover:shadow"
-        >
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Provider</p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-900">Provider Dashboard</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            View assigned cleaning jobs, update job status, and manage notes from a cleaner-focused workflow.
-          </p>
-          <p className="mt-4 text-sm font-medium text-slate-900 group-hover:underline">Go to Provider Dashboard</p>
-        </Link>
-      </section>
+        <Show when="signed-out">
+          <section className="rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-lg">
+            <h2 className="text-2xl font-semibold">Get started</h2>
+            <p className="mt-2 text-sm text-slate-300">
+              Sign in or create an account to continue.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <SignInButton mode="modal">
+                <button className="rounded-xl bg-sky-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-400">
+                  Sign in
+                </button>
+              </SignInButton>
+
+              <SignUpButton mode="modal">
+                <button className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-200">
+                  Sign up
+                </button>
+              </SignUpButton>
+            </div>
+          </section>
+
+          <section className="grid gap-4 md:grid-cols-2">
+            <Link
+              href="/owner"
+              className="rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-lg transition hover:border-sky-400"
+            >
+              <h2 className="text-xl font-semibold">Owner Dashboard</h2>
+              <p className="mt-2 text-sm text-slate-300">
+                Manage properties, jobs, providers, calendars, and issues.
+              </p>
+            </Link>
+
+            <Link
+              href="/provider"
+              className="rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-lg transition hover:border-sky-400"
+            >
+              <h2 className="text-xl font-semibold">Provider Dashboard</h2>
+              <p className="mt-2 text-sm text-slate-300">
+                View assigned jobs, notifications, schedules, and action queues.
+              </p>
+            </Link>
+          </section>
+        </Show>
+
+        <Show when="signed-in">
+          <section className="rounded-2xl border border-sky-700 bg-sky-950/40 p-6 shadow-lg">
+            <h2 className="text-2xl font-semibold">Continue onboarding</h2>
+            <p className="mt-2 text-sm text-slate-300">
+              Choose your account type and create your linked owner or provider profile.
+            </p>
+            <div className="mt-4">
+              <Link
+                href="/onboarding"
+                className="inline-flex rounded-xl bg-sky-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
+              >
+                Continue onboarding
+              </Link>
+            </div>
+          </section>
+
+          <section className="grid gap-4 md:grid-cols-2">
+            <Link
+              href="/owner"
+              className="rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-lg transition hover:border-sky-400"
+            >
+              <h2 className="text-xl font-semibold">Owner Dashboard</h2>
+              <p className="mt-2 text-sm text-slate-300">
+                Manage properties, jobs, providers, calendars, and issues.
+              </p>
+            </Link>
+
+            <Link
+              href="/provider"
+              className="rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-lg transition hover:border-sky-400"
+            >
+              <h2 className="text-xl font-semibold">Provider Dashboard</h2>
+              <p className="mt-2 text-sm text-slate-300">
+                View assigned jobs, notifications, schedules, and action queues.
+              </p>
+            </Link>
+          </section>
+        </Show>
+      </div>
     </main>
   );
 }

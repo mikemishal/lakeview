@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createNotification } from "@/lib/notifications";
 
 type RouteContext = {
   params: Promise<{ jobId: string }>;
@@ -8,6 +9,15 @@ type RouteContext = {
 type AssignProviderBody = {
   providerId?: string | null;
 };
+
+function normalizeServiceType(value: string | null | undefined): string {
+  const normalized = value?.trim().toLowerCase() ?? "";
+  if (normalized === "cleaner") {
+    return "cleaning";
+  }
+
+  return normalized;
+}
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
@@ -27,11 +37,24 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (providerId) {
       const provider = await prisma.serviceProvider.findUnique({
         where: { id: providerId },
+        include: {
+          capabilities: true,
+        },
       });
 
-      if (!provider || !provider.active || provider.serviceType !== "cleaner") {
+      const providerCanClean = Boolean(
+        provider &&
+          (normalizeServiceType(provider.serviceType) === "cleaning" ||
+            normalizeServiceType(provider.primaryServiceType) === "cleaning" ||
+            provider.capabilities.some(
+              (capability) =>
+                capability.active && normalizeServiceType(capability.serviceType) === "cleaning"
+            ))
+      );
+
+      if (!provider || !provider.active || !providerCanClean) {
         return NextResponse.json(
-          { error: "Valid cleaner provider is required." },
+          { error: "Valid cleaning provider is required." },
           { status: 400 }
         );
       }
@@ -40,12 +63,24 @@ export async function PATCH(request: Request, context: RouteContext) {
         where: { id: jobId },
         data: {
           assignedProviderId: providerId,
+          ownerSelfAssigned: false,
           status: "assigned",
         },
         include: {
           calendarEvent: true,
           assignedProvider: true,
+          property: true,
         },
+      });
+
+      await createNotification({
+        audienceType: "provider",
+        providerId: provider.id,
+        propertyId: cleaningJob.propertyId,
+        cleaningJobId: cleaningJob.id,
+        type: "job_assigned",
+        title: "New job assigned",
+        message: `${cleaningJob.property.name}: ${cleaningJob.title}`,
       });
 
       return NextResponse.json({ cleaningJob });
@@ -55,11 +90,13 @@ export async function PATCH(request: Request, context: RouteContext) {
       where: { id: jobId },
       data: {
         assignedProviderId: null,
+        ownerSelfAssigned: false,
         status: "needs_assignment",
       },
       include: {
         calendarEvent: true,
         assignedProvider: true,
+        property: true,
       },
     });
 

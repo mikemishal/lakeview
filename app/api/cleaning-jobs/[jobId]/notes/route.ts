@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createNotification } from "@/lib/notifications";
 
 type RouteContext = {
   params: Promise<{ jobId: string }>;
@@ -46,6 +47,17 @@ export async function PATCH(request: Request, context: RouteContext) {
         property: true,
       },
     });
+
+    if (normalizedNotes !== existingJob.notes) {
+      await createNotification({
+        audienceType: "owner",
+        propertyId: cleaningJob.propertyId,
+        cleaningJobId: cleaningJob.id,
+        type: "job_notes_updated",
+        title: "Job notes updated",
+        message: `Notes updated for ${cleaningJob.title}`,
+      });
+    }
 
     return NextResponse.json({ cleaningJob });
   } catch {

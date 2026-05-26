@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createNotification } from "@/lib/notifications";
 
 type RouteContext = {
   params: Promise<{ jobId: string }>;
@@ -7,6 +8,7 @@ type RouteContext = {
 
 type UpdateStatusBody = {
   status?: string;
+  actorType?: "owner" | "provider";
 };
 
 const ALLOWED_STATUSES = [
@@ -23,6 +25,10 @@ function isValidStatus(value: string): value is (typeof ALLOWED_STATUSES)[number
   return (ALLOWED_STATUSES as readonly string[]).includes(value);
 }
 
+const OWNER_ALWAYS_ALLOWED = new Set(["needs_assignment", "assigned", "cancelled"]);
+const OWNER_SELF_ONLY_ALLOWED = new Set(["in_progress", "completed"]);
+const PROVIDER_ALLOWED = new Set(["accepted", "declined", "in_progress", "completed"]);
+
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { jobId } = await context.params;
@@ -38,6 +44,9 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const existingJob = await prisma.cleaningJob.findUnique({
       where: { id: jobId },
+      include: {
+        assignedProvider: true,
+      },
     });
 
     if (!existingJob) {
@@ -47,10 +56,33 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
+    if (body.actorType === "owner") {
+      const ownerAllowed =
+        OWNER_ALWAYS_ALLOWED.has(status) ||
+        (OWNER_SELF_ONLY_ALLOWED.has(status) && existingJob.ownerSelfAssigned);
+
+      if (!ownerAllowed) {
+        return NextResponse.json(
+          { error: "Owner cannot perform this job action." },
+          { status: 403 }
+        );
+      }
+    }
+
+    if (body.actorType === "provider") {
+      if (!PROVIDER_ALLOWED.has(status)) {
+        return NextResponse.json(
+          { error: "Provider cannot perform this job action." },
+          { status: 403 }
+        );
+      }
+    }
+
     const now = new Date();
     const updateData: {
       status: string;
       assignedProviderId?: string | null;
+      ownerSelfAssigned?: boolean;
       acceptedAt?: Date;
       startedAt?: Date;
       completedAt?: Date;
@@ -65,6 +97,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (status === "declined") {
       updateData.assignedProviderId = null;
+      updateData.ownerSelfAssigned = false;
     }
 
     if (status === "in_progress") {
@@ -89,6 +122,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (status === "cancelled") {
       updateData.cancelledAt = now;
+      updateData.ownerSelfAssigned = false;
     }
 
     const cleaningJob = await prisma.cleaningJob.update({
@@ -97,8 +131,72 @@ export async function PATCH(request: Request, context: RouteContext) {
       include: {
         calendarEvent: true,
         assignedProvider: true,
+        property: true,
       },
     });
+
+    const providerName =
+      status === "declined"
+        ? existingJob.assignedProvider?.name ?? "Provider"
+        : cleaningJob.assignedProvider?.name ?? existingJob.assignedProvider?.name ?? "Provider";
+
+    const shouldNotifyOwner = !(body.actorType === "owner" && existingJob.ownerSelfAssigned);
+
+    if (status === "accepted" && shouldNotifyOwner) {
+      await createNotification({
+        audienceType: "owner",
+        propertyId: cleaningJob.propertyId,
+        cleaningJobId: cleaningJob.id,
+        type: "job_accepted",
+        title: "Job accepted",
+        message: `${providerName} accepted ${cleaningJob.title}`,
+      });
+    }
+
+    if (status === "declined") {
+      await createNotification({
+        audienceType: "owner",
+        propertyId: cleaningJob.propertyId,
+        cleaningJobId: cleaningJob.id,
+        type: "job_declined",
+        title: "Job declined",
+        message: `${providerName} declined ${cleaningJob.title}`,
+      });
+    }
+
+    if (status === "in_progress" && shouldNotifyOwner) {
+      await createNotification({
+        audienceType: "owner",
+        propertyId: cleaningJob.propertyId,
+        cleaningJobId: cleaningJob.id,
+        type: "job_started",
+        title: "Job started",
+        message: `${providerName} started ${cleaningJob.title}`,
+      });
+    }
+
+    if (status === "completed" && shouldNotifyOwner) {
+      await createNotification({
+        audienceType: "owner",
+        propertyId: cleaningJob.propertyId,
+        cleaningJobId: cleaningJob.id,
+        type: "job_completed",
+        title: "Job completed",
+        message: `${providerName} completed ${cleaningJob.title}`,
+      });
+    }
+
+    if (status === "cancelled" && cleaningJob.assignedProviderId) {
+      await createNotification({
+        audienceType: "provider",
+        providerId: cleaningJob.assignedProviderId,
+        propertyId: cleaningJob.propertyId,
+        cleaningJobId: cleaningJob.id,
+        type: "job_cancelled",
+        title: "Job cancelled",
+        message: `${cleaningJob.title} was cancelled`,
+      });
+    }
 
     return NextResponse.json({ cleaningJob });
   } catch {

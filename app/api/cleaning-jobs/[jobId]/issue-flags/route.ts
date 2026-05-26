@@ -1,5 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createNotification } from "@/lib/notifications";
+
+function formatIssueLabels(labels: string[]): string {
+  if (labels.length === 1) {
+    return labels[0];
+  }
+
+  if (labels.length === 2) {
+    return `${labels[0]} and ${labels[1]}`;
+  }
+
+  return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
+}
 
 type RouteContext = {
   params: Promise<{ jobId: string }>;
@@ -64,6 +77,31 @@ export async function PATCH(request: Request, context: RouteContext) {
         property: true,
       },
     });
+
+    const newlyFlaggedLabels: string[] = [];
+
+    if (updateData.maintenanceNeeded === true && !existingJob.maintenanceNeeded) {
+      newlyFlaggedLabels.push("Maintenance");
+    }
+
+    if (updateData.restockNeeded === true && !existingJob.restockNeeded) {
+      newlyFlaggedLabels.push("Restock");
+    }
+
+    if (updateData.damageFound === true && !existingJob.damageFound) {
+      newlyFlaggedLabels.push("Damage");
+    }
+
+    if (newlyFlaggedLabels.length > 0) {
+      await createNotification({
+        audienceType: "owner",
+        propertyId: cleaningJob.propertyId,
+        cleaningJobId: cleaningJob.id,
+        type: "job_issue_flagged",
+        title: "Issue flagged",
+        message: `${formatIssueLabels(newlyFlaggedLabels)} flagged for ${cleaningJob.title}`,
+      });
+    }
 
     return NextResponse.json({ cleaningJob });
   } catch {

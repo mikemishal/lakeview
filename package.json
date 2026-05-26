@@ -7,15 +7,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "db:clear-operational": "tsx scripts/clear-operational-data.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
-    "next": "15.3.2",
+    "@clerk/nextjs": "^7.4.1",
+    "next": "^15.3.8",
     "node-ical": "^0.20.1",
-    "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
@@ -30,6 +32,10 @@
     "postcss": "^8.5.15",
     "prisma": "^6.19.3",
     "tailwindcss": "^3.4.19",
+    "tsx": "^4.22.3",
     "typescript": "^5.7.2"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

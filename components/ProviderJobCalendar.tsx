@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { type CleanerScheduleJob } from "@/components/CleanerSchedule";
+import JobDetailsPanel from "@/components/JobDetailsPanel";
 
 type ProviderJobCalendarProps = {
   jobs: CleanerScheduleJob[];
@@ -133,19 +134,43 @@ function formatStatusLabel(status: string): string {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
-function formatCleaningTypeLabel(cleaningType: string): string {
+function formatRequestedServiceType(serviceType: string): string {
   const knownLabels: Record<string, string> = {
-    checkout_cleaning: "Checkout cleaning",
-    turnover_cleaning: "Turnover cleaning",
+    cleaning: "Cleaning",
+    maintenance: "Maintenance",
+    restock: "Restock",
+    inspection: "Inspection",
+    laundry: "Laundry",
+    trash_removal: "Trash removal",
   };
 
-  if (knownLabels[cleaningType]) {
-    return knownLabels[cleaningType];
+  if (knownLabels[serviceType]) {
+    return knownLabels[serviceType];
   }
 
-  const normalized = cleaningType.replace(/_/g, " ").trim();
+  const normalized = serviceType.replace(/_/g, " ").trim();
   if (!normalized) {
-    return "Cleaning";
+    return "Unknown";
+  }
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function formatPriority(priority: string): string {
+  const knownLabels: Record<string, string> = {
+    low: "Low",
+    normal: "Normal",
+    high: "High",
+    urgent: "Urgent",
+  };
+
+  if (knownLabels[priority]) {
+    return knownLabels[priority];
+  }
+
+  const normalized = priority.replace(/_/g, " ").trim();
+  if (!normalized) {
+    return "Unknown";
   }
 
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
@@ -219,8 +244,26 @@ function getIssueLabels(job: CleanerScheduleJob): string[] {
   return labels;
 }
 
-function JobCard({ job, compact = false }: { job: CleanerScheduleJob; compact?: boolean }) {
+function formatBedroomBathroom(job: CleanerScheduleJob): string {
+  const bedroomsLabel = job.property.bedrooms !== null ? `${job.property.bedrooms} bd` : "";
+  const bathroomsLabel = job.property.bathrooms !== null ? `${job.property.bathrooms} ba` : "";
+  return [bedroomsLabel, bathroomsLabel].filter((value) => value.length > 0).join(" / ");
+}
+
+function JobCard({
+  job,
+  compact = false,
+  onDetails,
+  todayDateOnly,
+}: {
+  job: CleanerScheduleJob;
+  compact?: boolean;
+  onDetails: () => void;
+  todayDateOnly: string;
+}) {
   const issueLabels = getIssueLabels(job);
+  const dueToday = toDateOnly(job.scheduledDate) === todayDateOnly;
+  const isManualJob = job.jobSource === "manual";
 
   return (
     <article className={`rounded-lg border border-slate-200 bg-white ${compact ? "p-2" : "p-3"}`}>
@@ -233,36 +276,61 @@ function JobCard({ job, compact = false }: { job: CleanerScheduleJob; compact?: 
 
       <div className="mb-1 flex flex-wrap gap-1.5">
         <span className={`inline-flex rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800 ${compact ? "text-[10px]" : "text-xs"}`}>
-          {formatCleaningTypeLabel(job.cleaningType)}
+          {compact ? formatRequestedServiceType(job.requestedServiceType) : formatRequestedServiceType(job.requestedServiceType)}
         </span>
         <span className={`inline-flex rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700 ${compact ? "text-[10px]" : "text-xs"}`}>
           {formatSourcePlatformLabel(job.sourcePlatform)}
         </span>
+        {isManualJob ? (
+          <span className={`inline-flex rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700 ${compact ? "text-[10px]" : "text-xs"}`}>
+            Manual job
+          </span>
+        ) : null}
+        {job.ownerSelfAssigned ? (
+          <span className={`inline-flex rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700 ${compact ? "text-[10px]" : "text-xs"}`}>
+            Owner assigned
+          </span>
+        ) : null}
+        {(job.priority === "high" || job.priority === "urgent") ? (
+          <span className={`inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 ${compact ? "text-[10px]" : "text-xs"}`}>
+            {formatPriority(job.priority)} priority
+          </span>
+        ) : null}
+        {dueToday ? (
+          <span className={`inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 ${compact ? "text-[10px]" : "text-xs"}`}>
+            Due today
+          </span>
+        ) : null}
       </div>
 
       <div className={`space-y-0.5 text-slate-700 ${compact ? "text-xs" : "text-sm"}`}>
         <p>
           <span className="font-medium text-slate-900">{job.property.name}</span>
         </p>
-        {job.property.address ? <p>{job.property.address}</p> : null}
-        {job.assignedProvider ? (
+        {!compact ? <p>{formatDateLabel(job.scheduledDate)}</p> : null}
+        <p>Service: {formatRequestedServiceType(job.requestedServiceType)}</p>
+        <p>Priority: {formatPriority(job.priority)}</p>
+        {job.dueTime ? <p>Due time: {job.dueTime}</p> : null}
+        {job.estimatedDurationMinutes !== null ? <p>Duration: {job.estimatedDurationMinutes} min</p> : null}
+        {job.ownerInstructions ? <p>Owner instructions available</p> : null}
+        {formatBedroomBathroom(job) ? <p>{formatBedroomBathroom(job)}</p> : null}
+        {job.property.floorNumber || job.property.parkingInfo || job.property.hasElevator ? (
           <p>
-            Assigned to: {job.assignedProvider.name}
-            {job.assignedProvider.companyName
-              ? ` (${job.assignedProvider.companyName})`
-              : ""}
+            {[job.property.floorNumber ? `Floor ${job.property.floorNumber}` : "", job.property.hasElevator ? "Elevator" : "", job.property.parkingInfo ? "Parking" : ""]
+              .filter((value) => value.length > 0)
+              .join(" • ")}
           </p>
         ) : null}
-        {job.calendarEvent ? (
-          <>
-            <p>
-              Stay: {formatDateLabel(job.calendarEvent.checkInDate)} {"→"} {formatDateLabel(job.calendarEvent.checkOutDate)}
-            </p>
-            <p>
-              {job.calendarEvent.nights} nights • {job.calendarEvent.summary}
-            </p>
-          </>
-        ) : null}
+      </div>
+
+      <div className="mt-2">
+        <button
+          type="button"
+          onClick={onDetails}
+          className={`rounded-md border border-slate-300 bg-white px-2 py-1 font-medium text-slate-700 transition hover:bg-slate-50 ${compact ? "text-[10px]" : "text-xs"}`}
+        >
+          Details
+        </button>
       </div>
 
       {issueLabels.length > 0 ? (
@@ -289,6 +357,7 @@ function JobCard({ job, compact = false }: { job: CleanerScheduleJob; compact?: 
 export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) {
   const [view, setView] = useState<CalendarView>("week");
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [selectedDetailsJobId, setSelectedDetailsJobId] = useState<string | null>(null);
 
   const jobsByDate = useMemo(() => {
     return jobs.reduce<Record<string, CleanerScheduleJob[]>>((accumulator, job) => {
@@ -343,6 +412,9 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
 
   const monthGridDates = useMemo(() => getMonthGridDates(normalizedCurrentDate), [normalizedCurrentDate]);
   const currentMonth = normalizedCurrentDate.getUTCMonth();
+  const todayDateOnly = toDateOnly(new Date());
+  const selectedDetailsJob =
+    selectedDetailsJobId ? jobs.find((job) => job.id === selectedDetailsJobId) ?? null : null;
 
   return (
     <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -415,7 +487,14 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
           <h3 className="mb-3 text-sm font-semibold text-slate-900">{formatDateLabel(normalizedCurrentDate)}</h3>
           <div className="space-y-2">
             {getJobsForDate(normalizedCurrentDate).length > 0 ? (
-              getJobsForDate(normalizedCurrentDate).map((job) => <JobCard key={job.id} job={job} />)
+              getJobsForDate(normalizedCurrentDate).map((job) => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  onDetails={() => setSelectedDetailsJobId(job.id)}
+                  todayDateOnly={todayDateOnly}
+                />
+              ))
             ) : (
               <p className="text-sm text-slate-600">No jobs scheduled for this day.</p>
             )}
@@ -435,7 +514,15 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
 
                   <div className="space-y-2">
                     {dayJobs.length > 0 ? (
-                      dayJobs.map((job) => <JobCard key={job.id} job={job} compact />)
+                      dayJobs.map((job) => (
+                        <JobCard
+                          key={job.id}
+                          job={job}
+                          compact
+                          onDetails={() => setSelectedDetailsJobId(job.id)}
+                          todayDateOnly={todayDateOnly}
+                        />
+                      ))
                     ) : (
                       <p className="text-xs text-slate-500">No jobs</p>
                     )}
@@ -485,7 +572,15 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
 
                     <div className="space-y-1.5">
                       {dayJobs.length > 0 ? (
-                        dayJobs.map((job) => <JobCard key={job.id} job={job} compact />)
+                        dayJobs.map((job) => (
+                          <JobCard
+                            key={job.id}
+                            job={job}
+                            compact
+                            onDetails={() => setSelectedDetailsJobId(job.id)}
+                            todayDateOnly={todayDateOnly}
+                          />
+                        ))
                       ) : (
                         <p className="text-xs text-slate-400">No jobs</p>
                       )}
@@ -496,6 +591,13 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
             </div>
           </div>
         </div>
+      ) : null}
+
+      {selectedDetailsJob ? (
+        <JobDetailsPanel
+          job={selectedDetailsJob}
+          onClose={() => setSelectedDetailsJobId(null)}
+        />
       ) : null}
     </section>
   );
