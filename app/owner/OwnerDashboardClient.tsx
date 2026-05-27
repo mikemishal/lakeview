@@ -189,7 +189,13 @@ type OwnerProfileSummary = {
   companyName: string | null;
 };
 
+type AccountProfileSummary = {
+  id: string;
+  inviteCodeVerified: boolean;
+};
+
 type OnboardingProfileResponse = {
+  accountProfile: AccountProfileSummary | null;
   ownerProfile: OwnerProfileSummary | null;
   serviceProvider: { id: string } | null;
 };
@@ -524,6 +530,8 @@ export default function HomePage() {
   const [ownerNotifications, setOwnerNotifications] = useState<AppNotification[]>([]);
   const [loadingOwnerNotifications, setLoadingOwnerNotifications] = useState(true);
   const [ownerNotificationsError, setOwnerNotificationsError] = useState("");
+  const [currentAccountProfile, setCurrentAccountProfile] =
+    useState<AccountProfileSummary | null>(null);
   const [currentOwnerProfile, setCurrentOwnerProfile] = useState<OwnerProfileSummary | null>(null);
   const [currentServiceProvider, setCurrentServiceProvider] = useState<{ id: string } | null>(null);
   const [claimingLegacyProperties, setClaimingLegacyProperties] = useState(false);
@@ -537,6 +545,9 @@ export default function HomePage() {
   const ownerRefreshInFlightRef = useRef(false);
   const adHocJobFormRef = useRef<HTMLDivElement | null>(null);
   const [adHocJobFocusToken, setAdHocJobFocusToken] = useState(0);
+  const inviteCodeBlocked = Boolean(
+    currentAccountProfile && !currentAccountProfile.inviteCodeVerified
+  );
 
   function isValidOwnerTab(value: string | null): value is OwnerDashboardTab {
     return (
@@ -1076,8 +1087,10 @@ export default function HomePage() {
         }
 
         if (!onboardingResponse.ok) {
+          setCurrentAccountProfile(null);
           setCurrentServiceProvider(null);
         } else {
+          setCurrentAccountProfile((onboardingData as OnboardingProfileResponse).accountProfile);
           setCurrentServiceProvider((onboardingData as OnboardingProfileResponse).serviceProvider);
         }
 
@@ -1088,6 +1101,7 @@ export default function HomePage() {
         setCurrentOwnerProfile(resolvedOwnerProfile);
       } catch {
         if (isActive) {
+          setCurrentAccountProfile(null);
           setCurrentOwnerProfile(null);
           setCurrentServiceProvider(null);
         }
@@ -1105,7 +1119,7 @@ export default function HomePage() {
     let isActive = true;
 
     async function loadOwnerDashboardData() {
-      if (!currentOwnerProfile) {
+      if (!currentOwnerProfile || inviteCodeBlocked) {
         if (isActive) {
           setLoadingProperties(false);
           setLoadingOwnerNotifications(false);
@@ -1128,10 +1142,16 @@ export default function HomePage() {
     return () => {
       isActive = false;
     };
-  }, [currentOwnerProfile, loadOwnerNotifications, loadProperties, loadServiceProviders]);
+  }, [
+    currentOwnerProfile,
+    inviteCodeBlocked,
+    loadOwnerNotifications,
+    loadProperties,
+    loadServiceProviders,
+  ]);
 
   const refreshOwnerDashboardData = useCallback(async () => {
-    if (!currentOwnerProfile || ownerRefreshInFlightRef.current) {
+    if (!currentOwnerProfile || inviteCodeBlocked || ownerRefreshInFlightRef.current) {
       return;
     }
 
@@ -1177,13 +1197,14 @@ export default function HomePage() {
   }, [
     currentOwnerProfile,
     focusedOwnerNotificationJob?.id,
+    inviteCodeBlocked,
     loadCleaningJobsForProperty,
     loadOwnerNotifications,
     selectedPropertyId,
   ]);
 
   useEffect(() => {
-    if (!currentOwnerProfile) {
+    if (!currentOwnerProfile || inviteCodeBlocked) {
       return;
     }
 
@@ -1194,7 +1215,13 @@ export default function HomePage() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [currentOwnerProfile, refreshOwnerDashboardData, selectedPropertyId, focusedOwnerNotificationJob?.id]);
+  }, [
+    currentOwnerProfile,
+    focusedOwnerNotificationJob?.id,
+    inviteCodeBlocked,
+    refreshOwnerDashboardData,
+    selectedPropertyId,
+  ]);
 
   useEffect(() => {
     if (ownerActiveTab !== "jobs" || adHocJobFocusToken === 0) {
@@ -2140,8 +2167,8 @@ export default function HomePage() {
     <AppHeader
       currentSection="owner"
       showProfilesLink
-      showOwnerLink={Boolean(currentOwnerProfile)}
-      showProviderLink={Boolean(currentOwnerProfile && currentServiceProvider)}
+      showOwnerLink={Boolean(currentOwnerProfile && !inviteCodeBlocked)}
+      showProviderLink={Boolean(currentOwnerProfile && currentServiceProvider && !inviteCodeBlocked)}
     />
     <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8 space-y-2">
@@ -2161,18 +2188,18 @@ export default function HomePage() {
           </p>
         ) : null}
         <div className="flex flex-wrap gap-3 text-sm">
-          {currentOwnerProfile && currentServiceProvider ? (
+          {currentOwnerProfile && currentServiceProvider && !inviteCodeBlocked ? (
             <Link href="/provider" className="font-medium text-slate-700 underline">
               Provider Dashboard
             </Link>
           ) : null}
-          {!currentServiceProvider && currentOwnerProfile ? (
+          {!currentServiceProvider && currentOwnerProfile && !inviteCodeBlocked ? (
             <Link href="/onboarding" className="font-medium text-slate-700 underline">
               Also work as a provider? Create provider profile
             </Link>
           ) : null}
         </div>
-        {currentOwnerProfile ? (
+        {currentOwnerProfile && !inviteCodeBlocked ? (
           <button
             type="button"
             onClick={() => {
@@ -2184,7 +2211,7 @@ export default function HomePage() {
           </button>
         ) : null}
 
-        {currentOwnerProfile ? (
+        {currentOwnerProfile && !inviteCodeBlocked ? (
           <div className="flex flex-wrap gap-2 pt-2">
             {([
               { id: "overview", label: "Overview" },
@@ -2211,7 +2238,20 @@ export default function HomePage() {
         ) : null}
       </header>
 
-      {!currentOwnerProfile ? (
+      {inviteCodeBlocked ? (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <h2 className="text-sm font-semibold text-amber-900">Invite code required</h2>
+          <p className="mt-1 text-sm text-amber-800">
+            Complete onboarding with a valid invite code before using the Owner Dashboard.
+          </p>
+          <Link
+            href="/onboarding"
+            className="mt-3 inline-flex rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-100"
+          >
+            Go to onboarding
+          </Link>
+        </section>
+      ) : !currentOwnerProfile ? (
         <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
           <h2 className="text-sm font-semibold text-amber-900">Owner profile required</h2>
           <p className="mt-1 text-sm text-amber-800">Complete owner onboarding before using the Owner Dashboard.</p>

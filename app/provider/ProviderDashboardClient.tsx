@@ -30,6 +30,15 @@ type CurrentProviderResponse = {
   currentProviderProfile: ServiceProvider | null;
 };
 
+type AccountProfileSummary = {
+  id: string;
+  inviteCodeVerified: boolean;
+};
+
+type OnboardingProfileResponse = {
+  accountProfile: AccountProfileSummary | null;
+};
+
 type ProviderCleaningJobsResponse = {
   cleaningJobs: CleanerScheduleJob[];
 };
@@ -142,6 +151,8 @@ export default function ProviderPage() {
     useState<CleanerScheduleJob | null>(null);
   const [loadingFocusedNotificationJob, setLoadingFocusedNotificationJob] = useState(false);
   const [focusedNotificationJobError, setFocusedNotificationJobError] = useState("");
+  const [currentAccountProfile, setCurrentAccountProfile] =
+    useState<AccountProfileSummary | null>(null);
   const [currentProviderProfile, setCurrentProviderProfile] = useState<ServiceProvider | null>(null);
   const [loadingCurrentProviderProfile, setLoadingCurrentProviderProfile] = useState(true);
   const [unclaimedProviders, setUnclaimedProviders] = useState<ServiceProvider[]>([]);
@@ -152,6 +163,9 @@ export default function ProviderPage() {
   const [claimingProviderProfile, setClaimingProviderProfile] = useState(false);
   const providerQueueSectionRef = useRef<HTMLElement | null>(null);
   const providerRefreshInFlightRef = useRef(false);
+  const inviteCodeBlocked = Boolean(
+    currentAccountProfile && !currentAccountProfile.inviteCodeVerified
+  );
 
   function isValidProviderTab(value: string | null): value is ProviderDashboardTab {
     return value === "overview" || value === "queue" || value === "calendar" || value === "list";
@@ -332,6 +346,10 @@ export default function ProviderPage() {
   );
 
   const handleLoadSchedule = useCallback(async (providerId: string) => {
+    if (inviteCodeBlocked) {
+      return;
+    }
+
     setSelectedCleanerId(providerId);
     setCleanerScheduleJobs([]);
     setProviderActiveQueue("none");
@@ -350,7 +368,7 @@ export default function ProviderPage() {
 
     await loadProviderSchedule(providerId);
     await loadProviderNotifications(providerId);
-  }, [loadProviderNotifications, loadProviderSchedule]);
+  }, [inviteCodeBlocked, loadProviderNotifications, loadProviderSchedule]);
 
   useEffect(() => {
     let isActive = true;
@@ -360,13 +378,27 @@ export default function ProviderPage() {
       setClaimProviderError("");
 
       try {
-        const response = await fetch("/api/current-provider");
-        const data = (await response.json()) as CurrentProviderResponse | ApiError;
+        const [currentProviderResponse, onboardingResponse] = await Promise.all([
+          fetch("/api/current-provider"),
+          fetch("/api/onboarding/profile"),
+        ]);
+        const data = (await currentProviderResponse.json()) as CurrentProviderResponse | ApiError;
+        const onboardingData = (await onboardingResponse.json()) as OnboardingProfileResponse | ApiError;
+        const onboardingAccountProfile = onboardingResponse.ok
+          ? (onboardingData as OnboardingProfileResponse).accountProfile
+          : null;
+        const inviteBlocked = Boolean(
+          onboardingAccountProfile && !onboardingAccountProfile.inviteCodeVerified
+        );
 
-        if (!response.ok) {
+        setCurrentAccountProfile(onboardingAccountProfile);
+
+        if (!currentProviderResponse.ok) {
           if (isActive) {
             setCurrentProviderProfile(null);
-            await loadUnclaimedProviders();
+            if (!inviteBlocked) {
+              await loadUnclaimedProviders();
+            }
           }
           return;
         }
@@ -375,14 +407,15 @@ export default function ProviderPage() {
         if (isActive) {
           setCurrentProviderProfile(currentProvider);
 
-          if (currentProvider) {
+          if (currentProvider && !inviteBlocked) {
             await handleLoadSchedule(currentProvider.id);
-          } else if (isDevelopment) {
+          } else if (isDevelopment && !inviteBlocked) {
             await loadUnclaimedProviders();
           }
         }
       } catch {
         if (isActive) {
+          setCurrentAccountProfile(null);
           setCurrentProviderProfile(null);
           if (isDevelopment) {
             await loadUnclaimedProviders();
@@ -453,7 +486,7 @@ export default function ProviderPage() {
   }
 
   const refreshProviderDashboardData = useCallback(async () => {
-    if (!selectedCleanerId || providerRefreshInFlightRef.current) {
+    if (!selectedCleanerId || inviteCodeBlocked || providerRefreshInFlightRef.current) {
       return;
     }
 
@@ -500,11 +533,12 @@ export default function ProviderPage() {
     focusedNotificationJob?.id,
     loadProviderNotifications,
     loadProviderSchedule,
+    inviteCodeBlocked,
     selectedCleanerId,
   ]);
 
   useEffect(() => {
-    if (!selectedCleanerId) {
+    if (!selectedCleanerId || inviteCodeBlocked) {
       return;
     }
 
@@ -515,7 +549,7 @@ export default function ProviderPage() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [refreshProviderDashboardData, selectedCleanerId, focusedNotificationJob?.id]);
+  }, [focusedNotificationJob?.id, inviteCodeBlocked, refreshProviderDashboardData, selectedCleanerId]);
 
   async function handleMarkProviderNotificationRead(notificationId: string) {
     setProviderNotificationsError("");
@@ -971,14 +1005,16 @@ export default function ProviderPage() {
     };
   })();
 
-  const hasProviderDashboard = Boolean(currentProviderProfile || (isDevelopment && selectedCleanerId));
+  const hasProviderDashboard = Boolean(
+    !inviteCodeBlocked && (currentProviderProfile || (isDevelopment && selectedCleanerId))
+  );
 
   return (
     <>
     <AppHeader
       currentSection="provider"
       showProfilesLink
-      showProviderLink={Boolean(currentProviderProfile)}
+      showProviderLink={Boolean(currentProviderProfile && !inviteCodeBlocked)}
     />
     <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8 space-y-2">
@@ -999,7 +1035,7 @@ export default function ProviderPage() {
           </p>
         ) : null}
 
-        {isDevelopment ? (
+        {isDevelopment && !inviteCodeBlocked ? (
           <details className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <summary className="cursor-pointer text-sm font-medium text-slate-700">
               Development provider selector
@@ -1040,7 +1076,21 @@ export default function ProviderPage() {
           <p className="text-sm text-slate-600">Loading provider profile...</p>
         ) : null}
 
-        {!loadingCurrentProviderProfile && !currentProviderProfile ? (
+        {!loadingCurrentProviderProfile && inviteCodeBlocked ? (
+          <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold text-amber-900">Invite code required</h2>
+              <p className="text-sm text-amber-800">
+                Complete onboarding with a valid invite code before using the Provider Dashboard.
+              </p>
+              <Link href="/onboarding" className="text-sm font-medium text-amber-900 underline">
+                Go to onboarding
+              </Link>
+            </div>
+          </section>
+        ) : null}
+
+        {!loadingCurrentProviderProfile && !currentProviderProfile && !inviteCodeBlocked ? (
           <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <div className="space-y-1">
               <h2 className="text-sm font-semibold text-amber-900">Provider profile required</h2>

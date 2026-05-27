@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 
 type OnboardingProfileBody = {
   accountType?: "account" | "owner" | "provider" | "both";
+  inviteCode?: string;
   name?: string;
   companyName?: string | null;
   phone?: string | null;
@@ -139,10 +140,28 @@ export async function POST(request: Request) {
 
     const companyName = toNullableTrimmed(body.companyName);
     const phone = toNullableTrimmed(body.phone);
+    const expectedInviteCode = process.env.SIGNUP_INVITE_CODE?.trim();
+
+    if (!expectedInviteCode) {
+      return NextResponse.json({ error: "Invite code is not configured." }, { status: 500 });
+    }
 
     const existingAccountProfile = await prisma.accountProfile.findUnique({
       where: { authUserId: userId },
     });
+
+    const alreadyInviteVerified = existingAccountProfile?.inviteCodeVerified === true;
+
+    if (!alreadyInviteVerified) {
+      const providedInviteCode = body.inviteCode?.trim() ?? "";
+
+      if (!providedInviteCode || providedInviteCode !== expectedInviteCode) {
+        return NextResponse.json({ error: "Invalid invite code." }, { status: 403 });
+      }
+    }
+
+    const inviteCodeVerifiedAt =
+      existingAccountProfile?.inviteCodeVerifiedAt ?? new Date();
 
     const accountProfile = existingAccountProfile
       ? await prisma.accountProfile.update({
@@ -153,6 +172,8 @@ export async function POST(request: Request) {
             companyName,
             phone,
             onboardingComplete: true,
+            inviteCodeVerified: true,
+            inviteCodeVerifiedAt,
           },
         })
       : await prisma.accountProfile.create({
@@ -163,6 +184,8 @@ export async function POST(request: Request) {
             companyName,
             phone,
             onboardingComplete: true,
+            inviteCodeVerified: true,
+            inviteCodeVerifiedAt,
           },
         });
 

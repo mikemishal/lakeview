@@ -11,6 +11,10 @@ Set the following variables in your deployment platform:
 - NEXT_PUBLIC_CLERK_SIGN_UP_URL
 - NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL
 - NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL
+- SIGNUP_INVITE_CODE
+
+For the current test environment, set SIGNUP_INVITE_CODE to GCMIKE.
+In Azure App Service, configure SIGNUP_INVITE_CODE under Application Settings.
 
 ## Database Setup
 

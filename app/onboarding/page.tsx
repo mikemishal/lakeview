@@ -10,6 +10,8 @@ type AccountType = "owner" | "provider" | "both";
 type AccountProfile = {
   id: string;
   onboardingComplete: boolean;
+  inviteCodeVerified: boolean;
+  inviteCodeVerifiedAt: string | null;
   name: string;
   phone: string | null;
   companyName: string | null;
@@ -111,6 +113,7 @@ export default function OnboardingPage() {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  const [accountProfile, setAccountProfile] = useState<AccountProfile | null>(null);
   const [ownerProfile, setOwnerProfile] = useState<OwnerProfile | null>(null);
   const [serviceProvider, setServiceProvider] = useState<ServiceProvider | null>(null);
 
@@ -119,6 +122,7 @@ export default function OnboardingPage() {
   const [name, setName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [phone, setPhone] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
 
   const [providerCapabilities, setProviderCapabilities] = useState<string[]>(["cleaning"]);
   const [providerPrimaryService, setProviderPrimaryService] = useState("cleaning");
@@ -136,6 +140,7 @@ export default function OnboardingPage() {
 
   const shouldShowProviderFields =
     selectedAccountType === "provider" || selectedAccountType === "both";
+  const requiresInviteCode = accountProfile?.inviteCodeVerified !== true;
 
   const primaryServiceOptions = useMemo(
     () => SERVICE_OPTIONS.filter((option) => providerCapabilities.includes(option.value)),
@@ -160,6 +165,7 @@ export default function OnboardingPage() {
       }
 
       const result = data as OnboardingProfileResponse;
+      setAccountProfile(result.accountProfile);
       setOwnerProfile(result.ownerProfile);
       setServiceProvider(result.serviceProvider);
 
@@ -176,6 +182,10 @@ export default function OnboardingPage() {
       setName(defaultName);
       setCompanyName(defaultCompanyName);
       setPhone(defaultPhone);
+
+      if (result.accountProfile?.inviteCodeVerified) {
+        setInviteCode("");
+      }
 
       if (result.serviceProvider) {
         const defaultCapabilities = result.serviceProvider.capabilities
@@ -234,9 +244,16 @@ export default function OnboardingPage() {
     }
 
     const trimmedName = name.trim();
+    const trimmedInviteCode = inviteCode.trim();
 
     if (!trimmedName) {
       setError("Name is required.");
+      setSaving(false);
+      return;
+    }
+
+    if (requiresInviteCode && !trimmedInviteCode) {
+      setError("Invite code is required.");
       setSaving(false);
       return;
     }
@@ -275,6 +292,7 @@ export default function OnboardingPage() {
         },
         body: JSON.stringify({
           accountType: selectedAccountType,
+          inviteCode: requiresInviteCode ? trimmedInviteCode : undefined,
           name: trimmedName,
           companyName,
           phone,
@@ -489,6 +507,22 @@ export default function OnboardingPage() {
                       placeholder="Name"
                       className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-500"
                     />
+
+                    {requiresInviteCode ? (
+                      <label className="block space-y-1">
+                        <span className="text-sm font-medium text-slate-900">Invite code</span>
+                        <input
+                          value={inviteCode}
+                          onChange={(event) => setInviteCode(event.target.value)}
+                          placeholder="Enter invite code"
+                          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+                        />
+                        <span className="text-xs text-slate-600">
+                          This test environment requires an invite code.
+                        </span>
+                      </label>
+                    ) : null}
+
                     <input
                       value={companyName}
                       onChange={(event) => setCompanyName(event.target.value)}
