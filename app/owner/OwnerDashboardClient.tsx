@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PropertyForm from "@/components/PropertyForm";
@@ -13,6 +14,7 @@ import ProviderJobCalendar from "@/components/ProviderJobCalendar";
 import ServiceProviderForm from "@/components/ServiceProviderForm";
 import EmptyState from "@/components/EmptyState";
 import NotificationPanel, { type AppNotification } from "@/components/NotificationPanel";
+import AppHeader from "@/components/AppHeader";
 import {
   CalendarEventItem,
   CalendarSyncResponse,
@@ -179,6 +181,21 @@ type ServiceProviderCleaningJobsResponse = {
 
 type NotificationsResponse = {
   notifications: AppNotification[];
+};
+
+type OwnerProfileSummary = {
+  id: string;
+  name: string;
+  companyName: string | null;
+};
+
+type OnboardingProfileResponse = {
+  ownerProfile: OwnerProfileSummary | null;
+  serviceProvider: { id: string } | null;
+};
+
+type CurrentOwnerResponse = {
+  ownerProfile: OwnerProfileSummary | null;
 };
 
 type FocusedOwnerCleaningJobResponse = {
@@ -507,6 +524,11 @@ export default function HomePage() {
   const [ownerNotifications, setOwnerNotifications] = useState<AppNotification[]>([]);
   const [loadingOwnerNotifications, setLoadingOwnerNotifications] = useState(true);
   const [ownerNotificationsError, setOwnerNotificationsError] = useState("");
+  const [currentOwnerProfile, setCurrentOwnerProfile] = useState<OwnerProfileSummary | null>(null);
+  const [currentServiceProvider, setCurrentServiceProvider] = useState<{ id: string } | null>(null);
+  const [claimingLegacyProperties, setClaimingLegacyProperties] = useState(false);
+  const [legacyPropertiesClaimMessage, setLegacyPropertiesClaimMessage] = useState("");
+  const [legacyPropertiesClaimError, setLegacyPropertiesClaimError] = useState("");
   const [focusedOwnerNotificationJob, setFocusedOwnerNotificationJob] =
     useState<CleaningJobItem | null>(null);
   const [loadingFocusedOwnerNotificationJob, setLoadingFocusedOwnerNotificationJob] =
@@ -899,6 +921,14 @@ export default function HomePage() {
   const loadOwnerNotifications = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
 
+    if (!currentOwnerProfile) {
+      if (!silent) {
+        setLoadingOwnerNotifications(false);
+        setOwnerNotificationsError("");
+      }
+      return;
+    }
+
     if (!silent) {
       setLoadingOwnerNotifications(true);
       setOwnerNotificationsError("");
@@ -912,7 +942,9 @@ export default function HomePage() {
         const message = (data as CalendarSyncError).error || "Failed to load notifications.";
 
         if (silent) {
-          console.error(message);
+          if (!(response.status === 403 && message === "Owner profile is required.")) {
+            console.error(message);
+          }
         } else {
           setOwnerNotificationsError(message);
         }
@@ -931,7 +963,70 @@ export default function HomePage() {
         setLoadingOwnerNotifications(false);
       }
     }
-  }, []);
+  }, [currentOwnerProfile]);
+
+  const loadProperties = useCallback(async () => {
+    if (!currentOwnerProfile) {
+      setLoadingProperties(false);
+      return;
+    }
+
+    setLoadingProperties(true);
+    setPropertyError("");
+
+    try {
+      const propertiesResponse = await fetch("/api/properties");
+      const propertiesData = (await propertiesResponse.json()) as
+        | LoadPropertiesResponse
+        | SavePropertyError;
+
+      if (!propertiesResponse.ok) {
+        setPropertyError(
+          (propertiesData as SavePropertyError).error || "Failed to load properties."
+        );
+        return;
+      }
+
+      const loadedProperties = (propertiesData as LoadPropertiesResponse).properties;
+      setProperties(loadedProperties);
+
+      if (loadedProperties.length === 0) {
+        return;
+      }
+
+      const firstProperty = loadedProperties[0];
+      setSelectedPropertyId(firstProperty.id);
+      setLoadingEventsPropertyId(firstProperty.id);
+      setItems([]);
+      setError("");
+
+      try {
+        const eventsResponse = await fetch(`/api/properties/${firstProperty.id}/events`);
+        const eventsData = (await eventsResponse.json()) as
+          | PropertyEventsResponse
+          | CalendarSyncError;
+
+        if (!eventsResponse.ok) {
+          setError(
+            (eventsData as CalendarSyncError).error || "Unable to load saved events."
+          );
+        } else {
+          setItems(
+            mapDbEventsToCalendarItems((eventsData as PropertyEventsResponse).events)
+          );
+          void loadCleaningJobsForProperty(firstProperty.id);
+        }
+      } catch {
+        setError("Unable to load saved events.");
+      } finally {
+        setLoadingEventsPropertyId("");
+      }
+    } catch {
+      setPropertyError("Failed to load properties.");
+    } finally {
+      setLoadingProperties(false);
+    }
+  }, [currentOwnerProfile, loadCleaningJobsForProperty]);
 
   const loadServiceProviders = useCallback(async () => {
     setLoadingServiceProviders(true);
@@ -959,109 +1054,42 @@ export default function HomePage() {
     let isActive = true;
 
     async function loadInitialData() {
-      setLoadingProperties(true);
-      setLoadingServiceProviders(true);
-      setLoadingOwnerNotifications(true);
-      setOwnerNotificationsError("");
-
       try {
-        const [propertiesResponse, providersResponse, notificationsResponse] = await Promise.all([
-          fetch("/api/properties"),
-          fetch("/api/service-providers"),
-          fetch("/api/notifications?audienceType=owner&unreadOnly=true"),
+        const [currentOwnerResponse, onboardingResponse] = await Promise.all([
+          fetch("/api/current-owner"),
+          fetch("/api/onboarding/profile"),
         ]);
 
-        const propertiesData = (await propertiesResponse.json()) as
-          | LoadPropertiesResponse
-          | SavePropertyError;
-        const providersData = (await providersResponse.json()) as
-          | ServiceProvidersResponse
-          | CalendarSyncError;
-        const notificationsData = (await notificationsResponse.json()) as
-          | NotificationsResponse
+        let resolvedOwnerProfile: OwnerProfileSummary | null = null;
+
+        if (currentOwnerResponse.ok) {
+          const currentOwnerData = (await currentOwnerResponse.json()) as CurrentOwnerResponse;
+          resolvedOwnerProfile = currentOwnerData.ownerProfile;
+        }
+
+        const onboardingData = (await onboardingResponse.json()) as
+          | OnboardingProfileResponse
           | CalendarSyncError;
 
         if (!isActive) {
           return;
         }
 
-        if (!propertiesResponse.ok) {
-          setPropertyError(
-            (propertiesData as SavePropertyError).error || "Failed to load properties."
-          );
+        if (!onboardingResponse.ok) {
+          setCurrentServiceProvider(null);
         } else {
-          const loadedProperties = (propertiesData as LoadPropertiesResponse).properties;
-          setProperties(loadedProperties);
-
-          if (loadedProperties.length > 0) {
-            const firstProperty = loadedProperties[0];
-            setSelectedPropertyId(firstProperty.id);
-            setLoadingEventsPropertyId(firstProperty.id);
-            setItems([]);
-            setError("");
-
-            try {
-              const eventsResponse = await fetch(`/api/properties/${firstProperty.id}/events`);
-              const eventsData = (await eventsResponse.json()) as
-                | PropertyEventsResponse
-                | CalendarSyncError;
-
-              if (!isActive) {
-                return;
-              }
-
-              if (!eventsResponse.ok) {
-                setError(
-                  (eventsData as CalendarSyncError).error || "Unable to load saved events."
-                );
-              } else {
-                setItems(
-                  mapDbEventsToCalendarItems((eventsData as PropertyEventsResponse).events)
-                );
-                void loadCleaningJobsForProperty(firstProperty.id);
-              }
-            } catch {
-              if (isActive) {
-                setError("Unable to load saved events.");
-              }
-            } finally {
-              if (isActive) {
-                setLoadingEventsPropertyId("");
-              }
-            }
-          }
+          setCurrentServiceProvider((onboardingData as OnboardingProfileResponse).serviceProvider);
         }
 
-        if (!providersResponse.ok) {
-          setServiceProviderError(
-            (providersData as CalendarSyncError).error ||
-              "Failed to load service providers."
-          );
-        } else {
-          setServiceProviders((providersData as ServiceProvidersResponse).serviceProviders);
+        if (!resolvedOwnerProfile && onboardingResponse.ok) {
+          resolvedOwnerProfile = (onboardingData as OnboardingProfileResponse).ownerProfile;
         }
 
-        if (!notificationsResponse.ok) {
-          setOwnerNotificationsError(
-            (notificationsData as CalendarSyncError).error ||
-              "Failed to load notifications."
-          );
-        } else {
-          setOwnerNotifications(
-            (notificationsData as NotificationsResponse).notifications
-          );
-        }
+        setCurrentOwnerProfile(resolvedOwnerProfile);
       } catch {
         if (isActive) {
-          setPropertyError("Failed to load properties.");
-          setServiceProviderError("Failed to load service providers.");
-          setOwnerNotificationsError("Failed to load notifications.");
-        }
-      } finally {
-        if (isActive) {
-          setLoadingProperties(false);
-          setLoadingServiceProviders(false);
-          setLoadingOwnerNotifications(false);
+          setCurrentOwnerProfile(null);
+          setCurrentServiceProvider(null);
         }
       }
     }
@@ -1071,10 +1099,39 @@ export default function HomePage() {
     return () => {
       isActive = false;
     };
-  }, [loadCleaningJobsForProperty]);
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadOwnerDashboardData() {
+      if (!currentOwnerProfile) {
+        if (isActive) {
+          setLoadingProperties(false);
+          setLoadingOwnerNotifications(false);
+          setLoadingServiceProviders(false);
+        }
+        return;
+      }
+
+      if (!isActive) {
+        return;
+      }
+
+      void loadProperties();
+      void loadServiceProviders();
+      void loadOwnerNotifications();
+    }
+
+    void loadOwnerDashboardData();
+
+    return () => {
+      isActive = false;
+    };
+  }, [currentOwnerProfile, loadOwnerNotifications, loadProperties, loadServiceProviders]);
 
   const refreshOwnerDashboardData = useCallback(async () => {
-    if (ownerRefreshInFlightRef.current) {
+    if (!currentOwnerProfile || ownerRefreshInFlightRef.current) {
       return;
     }
 
@@ -1118,6 +1175,7 @@ export default function HomePage() {
       ownerRefreshInFlightRef.current = false;
     }
   }, [
+    currentOwnerProfile,
     focusedOwnerNotificationJob?.id,
     loadCleaningJobsForProperty,
     loadOwnerNotifications,
@@ -1125,6 +1183,10 @@ export default function HomePage() {
   ]);
 
   useEffect(() => {
+    if (!currentOwnerProfile) {
+      return;
+    }
+
     const intervalId = window.setInterval(() => {
       void refreshOwnerDashboardData();
     }, POLLING_INTERVAL_MS);
@@ -1132,7 +1194,7 @@ export default function HomePage() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [refreshOwnerDashboardData, selectedPropertyId, focusedOwnerNotificationJob?.id]);
+  }, [currentOwnerProfile, refreshOwnerDashboardData, selectedPropertyId, focusedOwnerNotificationJob?.id]);
 
   useEffect(() => {
     if (ownerActiveTab !== "jobs" || adHocJobFocusToken === 0) {
@@ -1973,6 +2035,47 @@ export default function HomePage() {
     }
   }
 
+  async function handleClaimLegacyProperties() {
+    setClaimingLegacyProperties(true);
+    setLegacyPropertiesClaimError("");
+    setLegacyPropertiesClaimMessage("");
+
+    try {
+      const response = await fetch("/api/current-owner/claim-legacy-properties", {
+        method: "PATCH",
+      });
+      const data = (await response.json()) as { updatedCount: number } | CalendarSyncError;
+
+      if (!response.ok) {
+        setLegacyPropertiesClaimError(
+          (data as CalendarSyncError).error || "Failed to claim legacy properties."
+        );
+        return;
+      }
+
+      const updatedCount = (data as { updatedCount: number }).updatedCount;
+      setLegacyPropertiesClaimMessage(`Claimed ${updatedCount} legacy properties.`);
+
+      const propertiesResponse = await fetch("/api/properties");
+      const propertiesData = (await propertiesResponse.json()) as LoadPropertiesResponse | SavePropertyError;
+
+      if (propertiesResponse.ok) {
+        const refreshedProperties = (propertiesData as LoadPropertiesResponse).properties;
+        setProperties(refreshedProperties);
+
+        if (!selectedPropertyId && refreshedProperties.length > 0) {
+          const firstProperty = refreshedProperties[0];
+          setSelectedPropertyId(firstProperty.id);
+          void loadCleaningJobsForProperty(firstProperty.id, { silent: true });
+        }
+      }
+    } catch {
+      setLegacyPropertiesClaimError("Failed to claim legacy properties.");
+    } finally {
+      setClaimingLegacyProperties(false);
+    }
+  }
+
   const selectedProperty = properties.find(
     (property) => property.id === selectedPropertyId
   );
@@ -2033,48 +2136,94 @@ export default function HomePage() {
   const ownerJobsTabView = cleaningJobsView === "calendar" ? "grouped" : cleaningJobsView;
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+    <>
+    <AppHeader
+      currentSection="owner"
+      showProfilesLink
+      showOwnerLink={Boolean(currentOwnerProfile)}
+      showProviderLink={Boolean(currentOwnerProfile && currentServiceProvider)}
+    />
+    <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8 space-y-2">
         <p className="text-sm font-medium uppercase tracking-wide text-slate-500">Project Lakeview</p>
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Owner Dashboard</h1>
         <p className="text-sm text-slate-600">
           Lakeview operations dashboard for properties, calendars, cleaning jobs, and provider workflows.
         </p>
-        <button
-          type="button"
-          onClick={() => {
-            void refreshOwnerDashboardData();
-          }}
-          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-        >
-          Refresh dashboard
-        </button>
-
-        <div className="flex flex-wrap gap-2 pt-2">
-          {([
-            { id: "overview", label: "Overview" },
-            { id: "jobs", label: "Jobs" },
-            { id: "calendar", label: "Calendar" },
-            { id: "properties", label: "Properties" },
-            { id: "providers", label: "Providers" },
-            { id: "developer", label: "Developer" },
-          ] as const).map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => updateOwnerTab(tab.id)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                ownerActiveTab === tab.id
-                  ? "bg-slate-900 text-white"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {currentOwnerProfile ? (
+          <p className="text-sm text-slate-700">
+            Signed in as owner:{" "}
+            <span className="font-semibold">
+              {currentOwnerProfile.companyName
+                ? `${currentOwnerProfile.name} (${currentOwnerProfile.companyName})`
+                : currentOwnerProfile.name}
+            </span>
+          </p>
+        ) : null}
+        <div className="flex flex-wrap gap-3 text-sm">
+          {currentOwnerProfile && currentServiceProvider ? (
+            <Link href="/provider" className="font-medium text-slate-700 underline">
+              Provider Dashboard
+            </Link>
+          ) : null}
+          {!currentServiceProvider && currentOwnerProfile ? (
+            <Link href="/onboarding" className="font-medium text-slate-700 underline">
+              Also work as a provider? Create provider profile
+            </Link>
+          ) : null}
         </div>
+        {currentOwnerProfile ? (
+          <button
+            type="button"
+            onClick={() => {
+              void refreshOwnerDashboardData();
+            }}
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            Refresh dashboard
+          </button>
+        ) : null}
+
+        {currentOwnerProfile ? (
+          <div className="flex flex-wrap gap-2 pt-2">
+            {([
+              { id: "overview", label: "Overview" },
+              { id: "jobs", label: "Jobs" },
+              { id: "calendar", label: "Calendar" },
+              { id: "properties", label: "Properties" },
+              { id: "providers", label: "Providers" },
+              { id: "developer", label: "Developer" },
+            ] as const).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => updateOwnerTab(tab.id)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                  ownerActiveTab === tab.id
+                    ? "bg-slate-900 text-white"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </header>
 
+      {!currentOwnerProfile ? (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <h2 className="text-sm font-semibold text-amber-900">Owner profile required</h2>
+          <p className="mt-1 text-sm text-amber-800">Complete owner onboarding before using the Owner Dashboard.</p>
+          <Link
+            href="/onboarding"
+            className="mt-3 inline-flex rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-100"
+          >
+            Go to onboarding
+          </Link>
+        </section>
+      ) : (
+        <>
       {ownerActiveTab === "overview" ? (
         <NotificationPanel
           title="Owner notifications"
@@ -3211,9 +3360,46 @@ export default function HomePage() {
               onSubmit={handleSubmit}
             />
           ) : null}
+
+          {currentOwnerProfile ? (
+            <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="space-y-1">
+                <h4 className="text-sm font-semibold text-slate-900">Legacy data tools</h4>
+                <p className="text-sm text-slate-600">
+                  Attach existing unowned properties to this owner profile.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void handleClaimLegacyProperties();
+                }}
+                disabled={claimingLegacyProperties}
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {claimingLegacyProperties ? "Claiming..." : "Claim legacy properties"}
+              </button>
+
+              {legacyPropertiesClaimMessage ? (
+                <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                  {legacyPropertiesClaimMessage}
+                </p>
+              ) : null}
+
+              {legacyPropertiesClaimError ? (
+                <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {legacyPropertiesClaimError}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
           </section>
         ) : null}
       </section>
+      </>
+      )}
     </main>
+    </>
   );
 }

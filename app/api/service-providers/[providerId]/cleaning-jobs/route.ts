@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { AuthAccessError, requireProviderProfile } from "@/lib/auth-access";
 
 type RouteContext = {
   params: Promise<{ providerId: string }>;
@@ -7,7 +8,15 @@ type RouteContext = {
 
 export async function GET(_request: Request, context: RouteContext) {
   try {
+    const currentProviderProfile = await requireProviderProfile();
     const { providerId } = await context.params;
+
+    if (providerId !== currentProviderProfile.id) {
+      return NextResponse.json(
+        { error: "You do not have access to this provider profile." },
+        { status: 403 }
+      );
+    }
 
     const serviceProvider = await prisma.serviceProvider.findUnique({
       where: { id: providerId },
@@ -41,7 +50,11 @@ export async function GET(_request: Request, context: RouteContext) {
       serviceProvider,
       cleaningJobs,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     return NextResponse.json(
       { error: "Failed to load assigned cleaning jobs." },
       { status: 500 }

@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications";
+import {
+  AuthAccessError,
+  canOwnerAccessCleaningJob,
+  canProviderAccessCleaningJob,
+  getCurrentOwnerProfile,
+  getCurrentProviderProfile,
+  getRequiredAuthUserId,
+} from "@/lib/auth-access";
 
 type RouteContext = {
   params: Promise<{ jobId: string }>;
@@ -31,6 +39,7 @@ const PROVIDER_ALLOWED = new Set(["accepted", "declined", "in_progress", "comple
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
+    await getRequiredAuthUserId();
     const { jobId } = await context.params;
     const body = (await request.json()) as UpdateStatusBody;
     const status = body.status?.trim() ?? "";
@@ -56,7 +65,42 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    if (body.actorType === "owner") {
+    const [ownerProfile, providerProfile] = await Promise.all([
+      getCurrentOwnerProfile(),
+      getCurrentProviderProfile(),
+    ]);
+
+    const [ownerHasAccess, providerHasAccess] = await Promise.all([
+      ownerProfile ? canOwnerAccessCleaningJob(ownerProfile.id, jobId) : Promise.resolve(false),
+      providerProfile
+        ? canProviderAccessCleaningJob(providerProfile.id, jobId)
+        : Promise.resolve(false),
+    ]);
+
+    let resolvedActorType = body.actorType;
+
+    if (!resolvedActorType) {
+      if (ownerHasAccess && !providerHasAccess) {
+        resolvedActorType = "owner";
+      } else if (providerHasAccess && !ownerHasAccess) {
+        resolvedActorType = "provider";
+      } else {
+        return NextResponse.json({ error: "Actor type is required." }, { status: 400 });
+      }
+    }
+
+    if (resolvedActorType !== "owner" && resolvedActorType !== "provider") {
+      return NextResponse.json({ error: "Actor type is required." }, { status: 400 });
+    }
+
+    if (resolvedActorType === "owner") {
+      if (!ownerHasAccess) {
+        return NextResponse.json(
+          { error: "You do not have access to this resource." },
+          { status: 403 }
+        );
+      }
+
       const ownerAllowed =
         OWNER_ALWAYS_ALLOWED.has(status) ||
         (OWNER_SELF_ONLY_ALLOWED.has(status) && existingJob.ownerSelfAssigned);
@@ -69,7 +113,14 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
-    if (body.actorType === "provider") {
+    if (resolvedActorType === "provider") {
+      if (!providerHasAccess) {
+        return NextResponse.json(
+          { error: "You do not have access to this resource." },
+          { status: 403 }
+        );
+      }
+
       if (!PROVIDER_ALLOWED.has(status)) {
         return NextResponse.json(
           { error: "Provider cannot perform this job action." },
@@ -140,7 +191,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         ? existingJob.assignedProvider?.name ?? "Provider"
         : cleaningJob.assignedProvider?.name ?? existingJob.assignedProvider?.name ?? "Provider";
 
-    const shouldNotifyOwner = !(body.actorType === "owner" && existingJob.ownerSelfAssigned);
+    const shouldNotifyOwner = !(resolvedActorType === "owner" && existingJob.ownerSelfAssigned);
 
     if (status === "accepted" && shouldNotifyOwner) {
       await createNotification({
@@ -199,7 +250,11 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     return NextResponse.json({ cleaningJob });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     return NextResponse.json(
       { error: "Failed to update cleaning job status." },
       { status: 500 }

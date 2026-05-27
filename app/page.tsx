@@ -76,16 +76,16 @@ export default function Home() {
 
         <Show when="signed-in">
           <section className="rounded-2xl border border-sky-700 bg-sky-950/40 p-6 shadow-lg">
-            <h2 className="text-2xl font-semibold">Continue onboarding</h2>
+            <h2 className="text-2xl font-semibold">Manage account profiles</h2>
             <p className="mt-2 text-sm text-slate-300">
-              Choose your account type and create your linked owner or provider profile.
+              Create or update your owner and provider profiles from one account.
             </p>
             <div className="mt-4">
               <Link
                 href="/onboarding"
                 className="inline-flex rounded-xl bg-sky-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
               >
-                Continue onboarding
+                Manage Profiles
               </Link>
             </div>
           </section>

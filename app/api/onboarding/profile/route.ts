@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 
 type OnboardingProfileBody = {
-  accountType?: "owner" | "provider";
+  accountType?: "account" | "owner" | "provider" | "both";
   name?: string;
   companyName?: string | null;
   phone?: string | null;
@@ -91,7 +91,10 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
-    const [ownerProfile, serviceProvider] = await Promise.all([
+    const [accountProfile, ownerProfile, serviceProvider] = await Promise.all([
+      prisma.accountProfile.findUnique({
+        where: { authUserId: userId },
+      }),
       prisma.ownerProfile.findUnique({
         where: { authUserId: userId },
       }),
@@ -101,7 +104,7 @@ export async function GET() {
       }),
     ]);
 
-    return NextResponse.json({ ownerProfile, serviceProvider });
+    return NextResponse.json({ accountProfile, ownerProfile, serviceProvider });
   } catch {
     return NextResponse.json({ error: "Failed to load onboarding profile." }, { status: 500 });
   }
@@ -118,36 +121,72 @@ export async function POST(request: Request) {
     const body = (await request.json()) as OnboardingProfileBody;
     const accountType = body.accountType;
 
-    if (accountType !== "owner" && accountType !== "provider") {
+    if (
+      accountType !== "account" &&
+      accountType !== "owner" &&
+      accountType !== "provider" &&
+      accountType !== "both"
+    ) {
       return NextResponse.json({ error: "Invalid account type." }, { status: 400 });
     }
 
     const user = await currentUser();
     const email = user?.emailAddresses[0]?.emailAddress ?? null;
-    const normalizedNameFromBody = body.name?.trim() ?? "";
-    const displayName =
-      normalizedNameFromBody ||
-      user?.fullName ||
-      user?.firstName ||
-      email ||
-      "New User";
+    const nameFromBody = body.name?.trim() ?? "";
+    if (!nameFromBody) {
+      return NextResponse.json({ error: "Name is required." }, { status: 400 });
+    }
 
     const companyName = toNullableTrimmed(body.companyName);
     const phone = toNullableTrimmed(body.phone);
 
-    if (accountType === "owner") {
-      const existingOwner = await prisma.ownerProfile.findUnique({
-        where: { authUserId: userId },
-      });
+    const existingAccountProfile = await prisma.accountProfile.findUnique({
+      where: { authUserId: userId },
+    });
 
-      const ownerProfile = existingOwner
+    const accountProfile = existingAccountProfile
+      ? await prisma.accountProfile.update({
+          where: { id: existingAccountProfile.id },
+          data: {
+            name: nameFromBody,
+            email: email ?? existingAccountProfile.email ?? null,
+            companyName,
+            phone,
+            onboardingComplete: true,
+          },
+        })
+      : await prisma.accountProfile.create({
+          data: {
+            authUserId: userId,
+            name: nameFromBody,
+            email,
+            companyName,
+            phone,
+            onboardingComplete: true,
+          },
+        });
+
+    const shouldCreateOwner = accountType === "owner" || accountType === "both";
+    const shouldCreateProvider = accountType === "provider" || accountType === "both";
+
+    let ownerProfile = await prisma.ownerProfile.findUnique({
+      where: { authUserId: userId },
+    });
+
+    let serviceProvider = await prisma.serviceProvider.findUnique({
+      where: { authUserId: userId },
+      include: { capabilities: true },
+    });
+
+    if (shouldCreateOwner) {
+      ownerProfile = ownerProfile
         ? await prisma.ownerProfile.update({
-            where: { id: existingOwner.id },
+            where: { id: ownerProfile.id },
             data: {
-              name: displayName,
-              companyName,
-              phone,
-              email,
+              name: nameFromBody,
+              email: accountProfile.email,
+              companyName: accountProfile.companyName,
+              phone: accountProfile.phone,
               onboardingComplete: true,
               active: true,
             },
@@ -155,134 +194,127 @@ export async function POST(request: Request) {
         : await prisma.ownerProfile.create({
             data: {
               authUserId: userId,
-              name: displayName,
-              companyName,
-              email,
-              phone,
+              name: nameFromBody,
+              email: accountProfile.email,
+              companyName: accountProfile.companyName,
+              phone: accountProfile.phone,
               onboardingComplete: true,
               active: true,
             },
           });
-
-      return NextResponse.json({
-        accountType: "owner",
-        ownerProfile,
-      });
     }
 
-    const requestedCapabilities = Array.isArray(body.capabilities)
-      ? body.capabilities
-      : ["cleaning"];
+    if (shouldCreateProvider) {
+      const requestedCapabilities = Array.isArray(body.capabilities)
+        ? body.capabilities
+        : ["cleaning"];
 
-    const capabilities: ServiceType[] = Array.from(
-      new Set(
-        requestedCapabilities
-          .map((capability) => normalizeServiceType(capability))
-          .filter((capability): capability is ServiceType => capability !== null)
-      )
-    );
-
-    if (capabilities.length === 0) {
-      return NextResponse.json(
-        { error: "At least one valid service capability is required." },
-        { status: 400 }
+      const capabilities: ServiceType[] = Array.from(
+        new Set(
+          requestedCapabilities
+            .map((capability) => normalizeServiceType(capability))
+            .filter((capability): capability is ServiceType => capability !== null)
+        )
       );
-    }
 
-    const requestedPrimaryServiceType = normalizeServiceType(body.primaryServiceType);
-    const primaryServiceType: ServiceType = requestedPrimaryServiceType ?? capabilities[0];
+      if (capabilities.length === 0) {
+        return NextResponse.json(
+          { error: "At least one valid service capability is required." },
+          { status: 400 }
+        );
+      }
 
-    if (!capabilities.includes(primaryServiceType)) {
-      return NextResponse.json(
-        { error: "Primary service must be one of the selected capabilities." },
-        { status: 400 }
-      );
-    }
+      const requestedPrimaryServiceType = normalizeServiceType(body.primaryServiceType);
+      const primaryServiceType: ServiceType = requestedPrimaryServiceType ?? capabilities[0];
 
-    const parsedServiceRadiusMiles = parseNullableInt(body.serviceRadiusMiles);
-    const parsedBaseRateCents = parseNullableInt(body.baseRateCents);
-    const parsedHourlyRateCents = parseNullableInt(body.hourlyRateCents);
+      if (!capabilities.includes(primaryServiceType)) {
+        return NextResponse.json(
+          { error: "Primary service must be one of the selected capabilities." },
+          { status: 400 }
+        );
+      }
 
-    if (
-      parsedServiceRadiusMiles === "invalid" ||
-      parsedBaseRateCents === "invalid" ||
-      parsedHourlyRateCents === "invalid"
-    ) {
-      return NextResponse.json({ error: "Invalid numeric field value." }, { status: 400 });
-    }
+      const parsedServiceRadiusMiles = parseNullableInt(body.serviceRadiusMiles);
+      const parsedBaseRateCents = parseNullableInt(body.baseRateCents);
+      const parsedHourlyRateCents = parseNullableInt(body.hourlyRateCents);
 
-    const baseAddress = toNullableTrimmed(body.baseAddress);
-    const baseCity = toNullableTrimmed(body.baseCity);
-    const baseState = toNullableTrimmed(body.baseState);
-    const baseZipCode = toNullableTrimmed(body.baseZipCode);
-    const serviceAreaNotes = toNullableTrimmed(body.serviceAreaNotes);
+      if (
+        parsedServiceRadiusMiles === "invalid" ||
+        parsedBaseRateCents === "invalid" ||
+        parsedHourlyRateCents === "invalid"
+      ) {
+        return NextResponse.json({ error: "Invalid numeric field value." }, { status: 400 });
+      }
 
-    const existingProvider = await prisma.serviceProvider.findUnique({
-      where: { authUserId: userId },
-      include: { capabilities: true },
-    });
+      const baseAddress = toNullableTrimmed(body.baseAddress);
+      const baseCity = toNullableTrimmed(body.baseCity);
+      const baseState = toNullableTrimmed(body.baseState);
+      const baseZipCode = toNullableTrimmed(body.baseZipCode);
+      const serviceAreaNotes = toNullableTrimmed(body.serviceAreaNotes);
 
-    const serviceProvider = existingProvider
-      ? await prisma.serviceProvider.update({
-          where: { id: existingProvider.id },
-          data: {
-            name: displayName,
-            companyName,
-            phone,
-            email,
-            serviceType: primaryServiceType,
-            primaryServiceType,
-            onboardingComplete: true,
-            active: true,
-            baseAddress,
-            baseCity,
-            baseState,
-            baseZipCode,
-            serviceRadiusMiles: parsedServiceRadiusMiles,
-            serviceAreaNotes,
-            baseRateCents: parsedBaseRateCents,
-            hourlyRateCents: parsedHourlyRateCents,
-            capabilities: {
-              deleteMany: {},
-              create: capabilities.map((serviceType) => ({
-                serviceType,
-                active: true,
-              })),
+      serviceProvider = serviceProvider
+        ? await prisma.serviceProvider.update({
+            where: { id: serviceProvider.id },
+            data: {
+              name: nameFromBody,
+              email: accountProfile.email,
+              companyName: accountProfile.companyName,
+              phone: accountProfile.phone,
+              serviceType: primaryServiceType,
+              primaryServiceType,
+              onboardingComplete: true,
+              active: true,
+              baseAddress,
+              baseCity,
+              baseState,
+              baseZipCode,
+              serviceRadiusMiles: parsedServiceRadiusMiles,
+              serviceAreaNotes,
+              baseRateCents: parsedBaseRateCents,
+              hourlyRateCents: parsedHourlyRateCents,
+              capabilities: {
+                deleteMany: {},
+                create: capabilities.map((serviceType) => ({
+                  serviceType,
+                  active: true,
+                })),
+              },
             },
-          },
-          include: { capabilities: true },
-        })
-      : await prisma.serviceProvider.create({
-          data: {
-            authUserId: userId,
-            name: displayName,
-            companyName,
-            email,
-            phone,
-            serviceType: primaryServiceType,
-            primaryServiceType,
-            onboardingComplete: true,
-            active: true,
-            baseAddress,
-            baseCity,
-            baseState,
-            baseZipCode,
-            serviceRadiusMiles: parsedServiceRadiusMiles,
-            serviceAreaNotes,
-            baseRateCents: parsedBaseRateCents,
-            hourlyRateCents: parsedHourlyRateCents,
-            capabilities: {
-              create: capabilities.map((serviceType) => ({
-                serviceType,
-                active: true,
-              })),
+            include: { capabilities: true },
+          })
+        : await prisma.serviceProvider.create({
+            data: {
+              authUserId: userId,
+              name: nameFromBody,
+              email: accountProfile.email,
+              companyName: accountProfile.companyName,
+              phone: accountProfile.phone,
+              serviceType: primaryServiceType,
+              primaryServiceType,
+              onboardingComplete: true,
+              active: true,
+              baseAddress,
+              baseCity,
+              baseState,
+              baseZipCode,
+              serviceRadiusMiles: parsedServiceRadiusMiles,
+              serviceAreaNotes,
+              baseRateCents: parsedBaseRateCents,
+              hourlyRateCents: parsedHourlyRateCents,
+              capabilities: {
+                create: capabilities.map((serviceType) => ({
+                  serviceType,
+                  active: true,
+                })),
+              },
             },
-          },
-          include: { capabilities: true },
-        });
+            include: { capabilities: true },
+          });
+    }
 
     return NextResponse.json({
-      accountType: "provider",
+      accountProfile,
+      ownerProfile,
       serviceProvider,
     });
   } catch {

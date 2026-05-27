@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  AuthAccessError,
+  canOwnerAccessProperty,
+  requireOwnerProfile,
+} from "@/lib/auth-access";
 
 type RouteContext = {
   params: Promise<{ propertyId: string }>;
@@ -76,6 +81,7 @@ function parseNullableInt(value: number | string | null | undefined): number | n
 
 export async function GET(_request: Request, context: RouteContext) {
   try {
+    const ownerProfile = await requireOwnerProfile();
     const { propertyId } = await context.params;
 
     const property = await prisma.property.findUnique({
@@ -86,14 +92,28 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Property not found." }, { status: 404 });
     }
 
+    const hasAccess = await canOwnerAccessProperty(ownerProfile.id, propertyId);
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "You do not have access to this property." },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json({ property });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     return NextResponse.json({ error: "Failed to load property." }, { status: 500 });
   }
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
+    const ownerProfile = await requireOwnerProfile();
     const { propertyId } = await context.params;
     const body = (await request.json()) as UpdatePropertyBody;
 
@@ -103,6 +123,15 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (!existingProperty) {
       return NextResponse.json({ error: "Property not found." }, { status: 404 });
+    }
+
+    const hasAccess = await canOwnerAccessProperty(ownerProfile.id, propertyId);
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "You do not have access to this property." },
+        { status: 403 }
+      );
     }
 
     if (body.hasElevator !== undefined && typeof body.hasElevator !== "boolean") {
@@ -242,7 +271,11 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
 
     return NextResponse.json({ property });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     return NextResponse.json({ error: "Failed to update property." }, { status: 500 });
   }
 }

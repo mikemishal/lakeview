@@ -8,8 +8,26 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model AccountProfile {
+  id                 String   @id @default(cuid())
+  authUserId         String   @unique
+
+  name               String
+  email              String?
+  phone              String?
+  companyName        String?
+
+  onboardingComplete Boolean  @default(false)
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([authUserId])
+  @@index([email])
 }
 
 model Property {

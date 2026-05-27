@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { AuthAccessError, requireOwnerProfile } from "@/lib/auth-access";
 
 type CreatePropertyBody = {
   name?: string;
@@ -72,20 +73,30 @@ function parseNullableInt(value: number | string | null | undefined): number | n
 
 export async function GET() {
   try {
+    const ownerProfile = await requireOwnerProfile();
+
     const properties = await prisma.property.findMany({
+      where: {
+        OR: [{ ownerProfileId: ownerProfile.id }, { ownerProfileId: null }],
+      },
       orderBy: {
         createdAt: "desc",
       },
     });
 
     return NextResponse.json({ properties });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     return NextResponse.json({ error: "Failed to load properties." }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
+    const ownerProfile = await requireOwnerProfile();
     const body = (await request.json()) as CreatePropertyBody;
 
     const name = body.name?.trim() ?? "";
@@ -128,6 +139,7 @@ export async function POST(request: Request) {
 
     const property = await prisma.property.create({
       data: {
+        ownerProfileId: ownerProfile.id,
         name,
         address,
         airbnbCalendarUrl,
@@ -153,7 +165,11 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ property });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     return NextResponse.json({ error: "Failed to create property." }, { status: 500 });
   }
 }

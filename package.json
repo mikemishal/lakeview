@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "db:clear-operational": "tsx scripts/clear-operational-data.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

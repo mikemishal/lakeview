@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import CleanerSchedule, { type CleanerScheduleJob } from "@/components/CleanerSchedule";
 import ProviderJobCalendar from "@/components/ProviderJobCalendar";
 import NotificationPanel, { type AppNotification } from "@/components/NotificationPanel";
+import AppHeader from "@/components/AppHeader";
 
 type ServiceProvider = {
   id: string;
@@ -12,10 +14,20 @@ type ServiceProvider = {
   companyName: string | null;
   serviceType: string;
   active: boolean;
+  authUserId?: string | null;
+  capabilities?: {
+    id: string;
+    serviceType: string;
+    active: boolean;
+  }[];
 };
 
 type ServiceProvidersResponse = {
   serviceProviders: ServiceProvider[];
+};
+
+type CurrentProviderResponse = {
+  currentProviderProfile: ServiceProvider | null;
 };
 
 type ProviderCleaningJobsResponse = {
@@ -105,9 +117,10 @@ const POLLING_INTERVAL_MS = 10_000;
 export default function ProviderPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isDevelopment = process.env.NODE_ENV === "development";
 
   const [cleaners, setCleaners] = useState<ServiceProvider[]>([]);
-  const [loadingCleaners, setLoadingCleaners] = useState(true);
+  const [loadingCleaners, setLoadingCleaners] = useState(isDevelopment);
   const [cleanersError, setCleanersError] = useState("");
 
   const [selectedCleanerId, setSelectedCleanerId] = useState("");
@@ -129,6 +142,14 @@ export default function ProviderPage() {
     useState<CleanerScheduleJob | null>(null);
   const [loadingFocusedNotificationJob, setLoadingFocusedNotificationJob] = useState(false);
   const [focusedNotificationJobError, setFocusedNotificationJobError] = useState("");
+  const [currentProviderProfile, setCurrentProviderProfile] = useState<ServiceProvider | null>(null);
+  const [loadingCurrentProviderProfile, setLoadingCurrentProviderProfile] = useState(true);
+  const [unclaimedProviders, setUnclaimedProviders] = useState<ServiceProvider[]>([]);
+  const [loadingUnclaimedProviders, setLoadingUnclaimedProviders] = useState(false);
+  const [selectedUnclaimedProviderId, setSelectedUnclaimedProviderId] = useState("");
+  const [claimProviderError, setClaimProviderError] = useState("");
+  const [claimProviderSuccess, setClaimProviderSuccess] = useState("");
+  const [claimingProviderProfile, setClaimingProviderProfile] = useState(false);
   const providerQueueSectionRef = useRef<HTMLElement | null>(null);
   const providerRefreshInFlightRef = useRef(false);
 
@@ -153,6 +174,10 @@ export default function ProviderPage() {
   );
 
   useEffect(() => {
+    if (!isDevelopment) {
+      return;
+    }
+
     let isActive = true;
 
     async function loadCleaners() {
@@ -190,6 +215,27 @@ export default function ProviderPage() {
     return () => {
       isActive = false;
     };
+  }, [isDevelopment]);
+
+  const loadUnclaimedProviders = useCallback(async () => {
+    setLoadingUnclaimedProviders(true);
+    setClaimProviderError("");
+
+    try {
+      const response = await fetch("/api/service-providers/unclaimed");
+      const data = (await response.json()) as ServiceProvidersResponse | ApiError;
+
+      if (!response.ok) {
+        setClaimProviderError((data as ApiError).error || "Failed to load unclaimed providers.");
+        return;
+      }
+
+      setUnclaimedProviders((data as ServiceProvidersResponse).serviceProviders);
+    } catch {
+      setClaimProviderError("Failed to load unclaimed providers.");
+    } finally {
+      setLoadingUnclaimedProviders(false);
+    }
   }, []);
 
   const loadProviderNotifications = useCallback(
@@ -285,7 +331,7 @@ export default function ProviderPage() {
     []
   );
 
-  async function handleLoadSchedule(providerId: string) {
+  const handleLoadSchedule = useCallback(async (providerId: string) => {
     setSelectedCleanerId(providerId);
     setCleanerScheduleJobs([]);
     setProviderActiveQueue("none");
@@ -304,6 +350,106 @@ export default function ProviderPage() {
 
     await loadProviderSchedule(providerId);
     await loadProviderNotifications(providerId);
+  }, [loadProviderNotifications, loadProviderSchedule]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadCurrentProviderProfile() {
+      setLoadingCurrentProviderProfile(true);
+      setClaimProviderError("");
+
+      try {
+        const response = await fetch("/api/current-provider");
+        const data = (await response.json()) as CurrentProviderResponse | ApiError;
+
+        if (!response.ok) {
+          if (isActive) {
+            setCurrentProviderProfile(null);
+            await loadUnclaimedProviders();
+          }
+          return;
+        }
+
+        const currentProvider = (data as CurrentProviderResponse).currentProviderProfile;
+        if (isActive) {
+          setCurrentProviderProfile(currentProvider);
+
+          if (currentProvider) {
+            await handleLoadSchedule(currentProvider.id);
+          } else if (isDevelopment) {
+            await loadUnclaimedProviders();
+          }
+        }
+      } catch {
+        if (isActive) {
+          setCurrentProviderProfile(null);
+          if (isDevelopment) {
+            await loadUnclaimedProviders();
+          }
+        }
+      } finally {
+        if (isActive) {
+          setLoadingCurrentProviderProfile(false);
+        }
+      }
+    }
+
+    void loadCurrentProviderProfile();
+
+    return () => {
+      isActive = false;
+    };
+  }, [handleLoadSchedule, isDevelopment, loadUnclaimedProviders]);
+
+  async function handleClaimLegacyProviderProfile() {
+    if (!selectedUnclaimedProviderId) {
+      setClaimProviderError("Provider ID is required.");
+      return;
+    }
+
+    setClaimingProviderProfile(true);
+    setClaimProviderError("");
+    setClaimProviderSuccess("");
+
+    try {
+      const response = await fetch("/api/current-provider/claim-legacy-provider", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ providerId: selectedUnclaimedProviderId }),
+      });
+
+      const data = (await response.json()) as { serviceProvider: ServiceProvider } | ApiError;
+
+      if (!response.ok) {
+        setClaimProviderError(
+          (data as ApiError).error || "Failed to claim legacy provider profile."
+        );
+        return;
+      }
+
+      const claimedProvider = (data as { serviceProvider: ServiceProvider }).serviceProvider;
+
+      setCurrentProviderProfile(claimedProvider);
+      setClaimProviderSuccess("Provider profile claimed.");
+      setSelectedUnclaimedProviderId("");
+      setUnclaimedProviders([]);
+      setCleaners((previous) => {
+        if (previous.some((provider) => provider.id === claimedProvider.id)) {
+          return previous;
+        }
+
+        return [claimedProvider, ...previous];
+      });
+
+      await handleLoadSchedule(claimedProvider.id);
+    } catch {
+      setClaimProviderError("Failed to claim legacy provider profile.");
+    } finally {
+      setClaimingProviderProfile(false);
+    }
   }
 
   const refreshProviderDashboardData = useCallback(async () => {
@@ -825,43 +971,142 @@ export default function ProviderPage() {
     };
   })();
 
+  const hasProviderDashboard = Boolean(currentProviderProfile || (isDevelopment && selectedCleanerId));
+
   return (
-    <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+    <>
+    <AppHeader
+      currentSection="provider"
+      showProfilesLink
+      showProviderLink={Boolean(currentProviderProfile)}
+    />
+    <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8 space-y-2">
         <p className="text-sm font-medium uppercase tracking-wide text-slate-500">Project Lakeview</p>
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Provider Dashboard</h1>
-        <p className="text-sm text-slate-600">View and update assigned cleaning jobs for a selected cleaner.</p>
+        <p className="text-sm text-slate-600">View and update assigned provider jobs and notifications.</p>
       </header>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="max-w-sm space-y-1">
-          <label htmlFor="providerCleanerSelect" className="block text-sm font-medium text-slate-700">
-            Cleaner
-          </label>
-          <select
-            id="providerCleanerSelect"
-            value={selectedCleanerId}
-            onChange={(event) => {
-              void handleLoadSchedule(event.target.value);
-            }}
-            disabled={loadingCleaners}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <option value="">Select cleaner</option>
-            {cleaners.map((cleaner) => (
-              <option key={cleaner.id} value={cleaner.id}>
-                {cleaner.companyName ? `${cleaner.name} (${cleaner.companyName})` : cleaner.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {currentProviderProfile ? (
+          <p className="text-sm text-slate-700">
+            Signed in as provider:{" "}
+            <span className="font-semibold">
+              {currentProviderProfile.companyName
+                ? `${currentProviderProfile.name} (${currentProviderProfile.companyName})`
+                : currentProviderProfile.name}
+            </span>
+          </p>
+        ) : null}
 
-        {loadingCleaners ? <p className="text-sm text-slate-600">Loading cleaners...</p> : null}
+        {isDevelopment ? (
+          <details className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <summary className="cursor-pointer text-sm font-medium text-slate-700">
+              Development provider selector
+            </summary>
+            <div className="mt-3 max-w-sm space-y-1">
+              <label htmlFor="providerCleanerSelect" className="block text-sm font-medium text-slate-700">
+                Cleaner
+              </label>
+              <select
+                id="providerCleanerSelect"
+                value={selectedCleanerId}
+                onChange={(event) => {
+                  void handleLoadSchedule(event.target.value);
+                }}
+                disabled={loadingCleaners}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <option value="">Select cleaner</option>
+                {cleaners.map((cleaner) => (
+                  <option key={cleaner.id} value={cleaner.id}>
+                    {cleaner.companyName ? `${cleaner.name} (${cleaner.companyName})` : cleaner.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </details>
+        ) : null}
+
+        {isDevelopment && loadingCleaners ? <p className="text-sm text-slate-600">Loading cleaners...</p> : null}
 
         {cleanersError ? (
           <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {cleanersError}
           </p>
+        ) : null}
+
+        {loadingCurrentProviderProfile ? (
+          <p className="text-sm text-slate-600">Loading provider profile...</p>
+        ) : null}
+
+        {!loadingCurrentProviderProfile && !currentProviderProfile ? (
+          <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold text-amber-900">Provider profile required</h2>
+              <p className="text-sm text-amber-800">
+                Complete provider onboarding before using the Provider Dashboard.
+              </p>
+              <Link href="/onboarding" className="text-sm font-medium text-amber-900 underline">
+                Go to onboarding
+              </Link>
+            </div>
+
+            {isDevelopment ? (
+              <div className="space-y-2 rounded-lg border border-amber-200 bg-white p-3">
+                <h3 className="text-sm font-semibold text-slate-900">Development tools</h3>
+                <p className="text-sm text-slate-600">
+                  Claim existing provider profile
+                </p>
+                <p className="text-sm text-slate-500">
+                  For local testing only. This will not appear in production.
+                </p>
+
+                <div className="max-w-sm space-y-1">
+                  <label htmlFor="unclaimedProviderSelect" className="block text-sm font-medium text-slate-700">
+                    Unclaimed provider
+                  </label>
+                  <select
+                    id="unclaimedProviderSelect"
+                    value={selectedUnclaimedProviderId}
+                    onChange={(event) => setSelectedUnclaimedProviderId(event.target.value)}
+                    disabled={loadingUnclaimedProviders || claimingProviderProfile}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="">Select provider</option>
+                    {unclaimedProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.companyName ? `${provider.name} (${provider.companyName})` : provider.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleClaimLegacyProviderProfile();
+                  }}
+                  disabled={claimingProviderProfile || !selectedUnclaimedProviderId}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {claimingProviderProfile ? "Claiming..." : "Claim provider profile"}
+                </button>
+
+                {claimProviderSuccess ? (
+                  <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                    {claimProviderSuccess}
+                  </p>
+                ) : null}
+
+                {claimProviderError ? (
+                  <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {claimProviderError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
         ) : null}
 
         {loadingSchedule ? <p className="text-sm text-slate-600">Loading cleaner schedule...</p> : null}
@@ -884,11 +1129,11 @@ export default function ProviderPage() {
           </p>
         ) : null}
 
-        {!selectedCleanerId ? (
+        {!hasProviderDashboard ? null : !selectedCleanerId ? (
           <p className="text-sm text-slate-600">Select a cleaner to view assigned jobs.</p>
         ) : null}
 
-        {selectedCleanerId ? (
+        {hasProviderDashboard ? (
           <div className="flex flex-wrap gap-2">
             {([
               { id: "overview", label: "Overview" },
@@ -912,7 +1157,7 @@ export default function ProviderPage() {
           </div>
         ) : null}
 
-        {selectedCleanerId && !loadingSchedule ? (
+        {hasProviderDashboard && !loadingSchedule ? (
           <div className="space-y-3">
             {providerActiveTab === "overview" ? (
               <NotificationPanel
@@ -1204,5 +1449,6 @@ export default function ProviderPage() {
         ) : null}
       </section>
     </main>
+    </>
   );
 }

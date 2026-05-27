@@ -1,6 +1,5 @@
 node_modules
 .next
-.env.example
 .env
 .env.local
 /lib/generated/prisma
@@ -8,6 +7,9 @@ node_modules
 /prisma/dev.db-journal
 /playwright-report
 /test-results
+/prisma/migrations_sqlite_backup/
+
 
 # clerk configuration (can include secrets)
 /.clerk/
+.env.example

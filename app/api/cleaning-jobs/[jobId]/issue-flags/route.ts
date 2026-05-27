@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications";
+import {
+  AuthAccessError,
+  canOwnerAccessCleaningJob,
+  canProviderAccessCleaningJob,
+  getCurrentOwnerProfile,
+  getCurrentProviderProfile,
+  getRequiredAuthUserId,
+} from "@/lib/auth-access";
 
 function formatIssueLabels(labels: string[]): string {
   if (labels.length === 1) {
@@ -26,6 +34,7 @@ type UpdateIssueFlagsBody = {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
+    await getRequiredAuthUserId();
     const { jobId } = await context.params;
     const body = (await request.json()) as UpdateIssueFlagsBody;
 
@@ -35,6 +44,25 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (!existingJob) {
       return NextResponse.json({ error: "Cleaning job not found." }, { status: 404 });
+    }
+
+    const [ownerProfile, providerProfile] = await Promise.all([
+      getCurrentOwnerProfile(),
+      getCurrentProviderProfile(),
+    ]);
+
+    const [ownerHasAccess, providerHasAccess] = await Promise.all([
+      ownerProfile ? canOwnerAccessCleaningJob(ownerProfile.id, jobId) : Promise.resolve(false),
+      providerProfile
+        ? canProviderAccessCleaningJob(providerProfile.id, jobId)
+        : Promise.resolve(false),
+    ]);
+
+    if (!ownerHasAccess && !providerHasAccess) {
+      return NextResponse.json(
+        { error: "You do not have access to this resource." },
+        { status: 403 }
+      );
     }
 
     const updateData: {
@@ -104,7 +132,11 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     return NextResponse.json({ cleaningJob });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     return NextResponse.json(
       { error: "Failed to update cleaning job issue flags." },
       { status: 500 }
