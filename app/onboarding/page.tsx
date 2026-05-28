@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Show, SignInButton } from "@clerk/nextjs";
 import AppHeader from "@/components/AppHeader";
 
@@ -108,6 +109,7 @@ function formatCentsToDollars(value: number | null | undefined): string {
 }
 
 export default function OnboardingPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -243,6 +245,8 @@ export default function OnboardingPage() {
       return;
     }
 
+    const submissionAccountType = selectedAccountType;
+
     const trimmedName = name.trim();
     const trimmedInviteCode = inviteCode.trim();
 
@@ -291,7 +295,7 @@ export default function OnboardingPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          accountType: selectedAccountType,
+          accountType: submissionAccountType,
           inviteCode: requiresInviteCode ? trimmedInviteCode : undefined,
           name: trimmedName,
           companyName,
@@ -314,15 +318,9 @@ export default function OnboardingPage() {
         return;
       }
 
-      if (selectedAccountType === "owner") {
-        setSuccessMessage("Your owner profile is complete.");
-      } else if (selectedAccountType === "provider") {
-        setSuccessMessage("Your provider profile is complete.");
-      } else {
-        setSuccessMessage("Your owner and provider profiles are complete.");
-      }
-
-      await loadProfileState();
+      const redirectPath = submissionAccountType === "provider" ? "/provider" : "/owner";
+      router.push(redirectPath);
+      return;
     } catch {
       setError("Failed to save onboarding profile.");
     } finally {

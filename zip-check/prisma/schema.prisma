@@ -1,0 +1,239 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AccountProfile {
+  id                 String   @id @default(cuid())
+  authUserId         String   @unique
+
+  name               String
+  email              String?
+  phone              String?
+  companyName        String?
+
+  onboardingComplete Boolean  @default(false)
+  inviteCodeVerified Boolean  @default(false)
+  inviteCodeVerifiedAt DateTime?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([authUserId])
+  @@index([email])
+}
+
+model Property {
+  id                String          @id @default(cuid())
+  ownerProfileId    String?
+  ownerProfile      OwnerProfile?   @relation(fields: [ownerProfileId], references: [id], onDelete: SetNull)
+  name              String
+  address           String?
+  airbnbCalendarUrl String
+  listingUrl        String?
+  propertyType      String?
+  bedrooms          Float?
+  bathrooms         Float?
+  squareFeet        Int?
+  maxGuests         Int?
+  defaultCheckInTime String?
+  defaultCheckOutTime String?
+  floorNumber       String?
+  hasElevator       Boolean         @default(false)
+  parkingInfo       String?
+  accessNotes       String?
+  cleaningNotes     String?
+  supplyLocation    String?
+  laundryLocation   String?
+  trashInstructions String?
+  petInfo           String?
+  providerInstructions String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  calendarEvents    CalendarEvent[]
+  cleaningJobs      CleaningJob[]
+  notifications     Notification[]
+
+  @@index([ownerProfileId])
+}
+
+model OwnerProfile {
+  id                 String   @id @default(cuid())
+  authUserId         String?  @unique
+
+  name               String
+  companyName        String?
+  email              String?
+  phone              String?
+
+  onboardingComplete Boolean  @default(false)
+  active             Boolean  @default(true)
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  properties         Property[]
+  notifications      Notification[]
+
+  @@index([authUserId])
+  @@index([active])
+  @@index([email])
+}
+
+model CalendarEvent {
+  id           String   @id @default(cuid())
+  propertyId   String
+  property     Property @relation(fields: [propertyId], references: [id])
+  externalId   String
+  summary      String
+  checkInDate  DateTime
+  checkOutDate DateTime
+  nights       Int
+  source       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  cleaningJob  CleaningJob?
+
+  @@unique([propertyId, externalId])
+  @@index([propertyId])
+  @@index([checkInDate])
+}
+
+model CleaningJob {
+  id              String        @id @default(cuid())
+  propertyId      String
+  property        Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  calendarEventId String?       @unique
+  calendarEvent   CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+  assignedProviderId String?
+  assignedProvider   ServiceProvider? @relation(fields: [assignedProviderId], references: [id], onDelete: SetNull)
+  title           String
+  scheduledDate   DateTime
+  jobSource       String        @default("calendar_sync")
+  requestedServiceType String   @default("cleaning")
+  priority        String        @default("normal")
+  dueTime         String?
+  estimatedDurationMinutes Int?
+  ownerInstructions String?
+  status          String        @default("needs_assignment")
+  sourcePlatform  String        @default("airbnb")
+  cleaningType    String        @default("checkout_cleaning")
+  ownerSelfAssigned Boolean      @default(false)
+  acceptedAt      DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  maintenanceNeeded Boolean      @default(false)
+  restockNeeded     Boolean      @default(false)
+  damageFound       Boolean      @default(false)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  notifications   Notification[]
+
+  @@index([propertyId])
+  @@index([assignedProviderId])
+  @@index([scheduledDate])
+  @@index([jobSource])
+  @@index([requestedServiceType])
+  @@index([priority])
+  @@index([status])
+  @@index([maintenanceNeeded])
+  @@index([restockNeeded])
+  @@index([damageFound])
+}
+
+model ServiceProvider {
+  id                 String               @id @default(cuid())
+  authUserId         String?              @unique
+  name               String
+  companyName        String?
+  email              String?
+  phone              String?
+  serviceType        String
+  primaryServiceType String?
+  notes              String?
+  onboardingComplete Boolean              @default(false)
+  active             Boolean              @default(true)
+  baseAddress        String?
+  baseCity           String?
+  baseState          String?
+  baseZipCode        String?
+  serviceRadiusMiles Int?
+  serviceAreaNotes   String?
+  latitude           Float?
+  longitude          Float?
+  ratingAverage      Float?
+  ratingCount        Int                  @default(0)
+  baseRateCents      Int?
+  hourlyRateCents    Int?
+  cleaningJobs       CleaningJob[]
+  notifications      Notification[]
+  capabilities       ProviderCapability[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@index([serviceType])
+  @@index([active])
+  @@index([name])
+  @@index([primaryServiceType])
+  @@index([baseZipCode])
+  @@index([baseCity])
+  @@index([baseState])
+  @@index([ratingAverage])
+}
+
+model ProviderCapability {
+  id          String          @id @default(cuid())
+  providerId  String
+  provider    ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  serviceType String
+  active      Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([providerId, serviceType])
+  @@index([providerId])
+  @@index([serviceType])
+  @@index([active])
+}
+
+model Notification {
+  id            String   @id @default(cuid())
+
+  audienceType  String
+  ownerProfileId String?
+  providerId    String?
+  propertyId    String?
+  cleaningJobId String?
+
+  type          String
+  title         String
+  message       String
+
+  readAt        DateTime?
+  createdAt     DateTime @default(now())
+
+  ownerProfile  OwnerProfile?   @relation(fields: [ownerProfileId], references: [id], onDelete: Cascade)
+  provider      ServiceProvider? @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  property      Property?        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  cleaningJob   CleaningJob?     @relation(fields: [cleaningJobId], references: [id], onDelete: Cascade)
+
+  @@index([audienceType])
+  @@index([ownerProfileId])
+  @@index([providerId])
+  @@index([propertyId])
+  @@index([cleaningJobId])
+  @@index([readAt])
+  @@index([createdAt])
+  @@index([type])
+}
