@@ -199,7 +199,7 @@ export default function CleaningJobCalendar({ jobs }: CleaningJobCalendarProps) 
                           ) : null}
                         </span>
                       ) : (
-                        <span className="text-slate-500">Unassigned</span>
+                        <span className="text-slate-500">Needs provider</span>
                       )}
                     </p>
                   </div>

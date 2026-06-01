@@ -231,6 +231,17 @@ function formatActivityDateTimeLabel(value: string): string {
   return activityDateTimeFormatter.format(parsed);
 }
 
+function toDateOnly(value: string | Date): string {
+  const parsed = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    parsed.getUTCDate()
+  ).padStart(2, "0")}`;
+}
+
 export default function CleaningJobCard({
   job,
   onStatusChange,
@@ -273,6 +284,103 @@ export default function CleaningJobCard({
     job.maintenanceNeeded || job.restockNeeded || job.damageFound;
   const isManualJob = job.jobSource === "manual";
   const isHighPriority = job.priority === "high" || job.priority === "urgent";
+  const isDueToday = toDateOnly(job.scheduledDate) === toDateOnly(new Date());
+
+  const primaryAction = (() => {
+    if (showOwnerActions) {
+      if (job.ownerSelfAssigned && job.status === "accepted") {
+        return {
+          label: "Start job",
+          onClick: () => onStatusChange?.(job.id, "in_progress"),
+          disabled: statusUpdating || !onStatusChange,
+        };
+      }
+
+      if (job.ownerSelfAssigned && job.status === "in_progress") {
+        return {
+          label: "Complete job",
+          onClick: () => onStatusChange?.(job.id, "completed"),
+          disabled: statusUpdating || !onStatusChange,
+        };
+      }
+
+      if (!job.ownerSelfAssigned && !job.assignedProviderId) {
+        return {
+          label: "Assign provider",
+          onClick: undefined,
+          disabled: false,
+        };
+      }
+
+      if (job.status === "completed") {
+        return {
+          label: "View details",
+          onClick: undefined,
+          disabled: false,
+        };
+      }
+
+      if (job.status === "cancelled") {
+        return {
+          label: "View details",
+          onClick: undefined,
+          disabled: false,
+        };
+      }
+
+      return {
+        label: "View details",
+        onClick: undefined,
+        disabled: false,
+      };
+    }
+
+    if (showCleanerActions) {
+      if (job.status === "assigned") {
+        return {
+          label: "Accept job",
+          onClick: () => onStatusChange?.(job.id, "accepted"),
+          disabled: statusUpdating || !onStatusChange,
+        };
+      }
+
+      if (job.status === "accepted" && isDueToday) {
+        return {
+          label: "Start job",
+          onClick: () => onStatusChange?.(job.id, "in_progress"),
+          disabled: statusUpdating || !onStatusChange,
+        };
+      }
+
+      if (job.status === "in_progress") {
+        return {
+          label: "Complete job",
+          onClick: () => onStatusChange?.(job.id, "completed"),
+          disabled: statusUpdating || !onStatusChange,
+        };
+      }
+
+      if (job.status === "accepted") {
+        return {
+          label: "View details",
+          onClick: undefined,
+          disabled: false,
+        };
+      }
+
+      return {
+        label: "View details",
+        onClick: undefined,
+        disabled: false,
+      };
+    }
+
+    return {
+      label: "View details",
+      onClick: undefined,
+      disabled: false,
+    };
+  })();
 
   function handleEditNotes() {
     setDraftNotes(job.notes ?? "");
@@ -371,7 +479,22 @@ export default function CleaningJobCard({
         ) : null}
       </div>
 
-      <div className="mt-3 space-y-1">
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          onClick={primaryAction.onClick}
+          disabled={primaryAction.disabled}
+          className="min-h-11 w-full rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+        >
+          {primaryAction.label}
+        </button>
+      </div>
+
+      <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <summary className="cursor-pointer text-sm font-medium text-slate-800">More</summary>
+
+        <div className="mt-3 space-y-3">
+      <div className="space-y-1">
         <label
           htmlFor={`cleaning-job-provider-${job.id}`}
           className="block text-sm font-medium text-slate-700"
@@ -388,9 +511,9 @@ export default function CleaningJobCard({
             }
           }}
           disabled={providerUpdating}
-          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <option value="">Unassigned</option>
+          <option value="">Needs provider</option>
           {cleanerProviders.map((provider) => (
             <option key={provider.id} value={provider.id}>
               {provider.companyName
@@ -417,7 +540,7 @@ export default function CleaningJobCard({
             }
           }}
           disabled={statusUpdating}
-          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {(showOwnerActions ? ownerStatusOptions : STATUS_OPTIONS).map((status) => (
             <option key={status} value={status}>
@@ -443,7 +566,7 @@ export default function CleaningJobCard({
               type="button"
               onClick={() => onStatusChange?.(job.id, "in_progress")}
               disabled={statusUpdating || !onStatusChange}
-              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Start job
             </button>
@@ -454,7 +577,7 @@ export default function CleaningJobCard({
               type="button"
               onClick={() => onStatusChange?.(job.id, "completed")}
               disabled={statusUpdating || !onStatusChange}
-              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Complete job
             </button>
@@ -469,7 +592,7 @@ export default function CleaningJobCard({
               type="button"
               onClick={() => onOwnerSelfAssign?.(job.id)}
               disabled={ownerSelfAssigning || !onOwnerSelfAssign}
-              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {ownerSelfAssigning ? "Self-assigning..." : "Self-assign"}
             </button>
@@ -488,12 +611,12 @@ export default function CleaningJobCard({
           <h4 className="text-sm font-medium text-slate-900">Cleaner actions</h4>
 
           {job.status === "assigned" ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 onClick={() => onStatusChange?.(job.id, "accepted")}
                 disabled={statusUpdating || !onStatusChange}
-                className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Accept job
               </button>
@@ -501,7 +624,7 @@ export default function CleaningJobCard({
                 type="button"
                 onClick={() => onStatusChange?.(job.id, "declined")}
                 disabled={statusUpdating || !onStatusChange}
-                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-11 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Decline job
               </button>
@@ -513,7 +636,7 @@ export default function CleaningJobCard({
               type="button"
               onClick={() => onStatusChange?.(job.id, "in_progress")}
               disabled={statusUpdating || !onStatusChange}
-              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Start job
             </button>
@@ -524,7 +647,7 @@ export default function CleaningJobCard({
               type="button"
               onClick={() => onStatusChange?.(job.id, "completed")}
               disabled={statusUpdating || !onStatusChange}
-              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Complete job
             </button>
@@ -538,7 +661,7 @@ export default function CleaningJobCard({
 
           {job.status === "needs_assignment" ? (
             <p className="text-xs text-slate-600">
-              Assign a cleaner before actions are available.
+              This job still needs a provider.
             </p>
           ) : null}
 
@@ -553,7 +676,7 @@ export default function CleaningJobCard({
       ) : null}
 
       <section className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <h4 className="text-sm font-medium text-slate-900">Issue flags</h4>
+        <h4 className="text-sm font-medium text-slate-900">Report issue</h4>
 
         <div className="space-y-2 text-sm text-slate-700">
           <label className="flex items-center gap-2">
@@ -615,9 +738,9 @@ export default function CleaningJobCard({
               type="button"
               onClick={handleEditNotes}
               disabled={notesUpdating}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-h-11 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {job.notes ? "Edit notes" : "Add notes"}
+              {job.notes ? "Add note" : "Add note"}
             </button>
           ) : null}
         </div>
@@ -633,20 +756,20 @@ export default function CleaningJobCard({
               disabled={notesUpdating}
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
             />
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 onClick={handleSaveNotes}
                 disabled={notesUpdating}
-                className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Save notes
+                Save note
               </button>
               <button
                 type="button"
                 onClick={handleCancelNotes}
                 disabled={notesUpdating}
-                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-11 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -685,6 +808,8 @@ export default function CleaningJobCard({
           </p>
         </div>
       ) : null}
+        </div>
+      </details>
     </article>
   );
 }

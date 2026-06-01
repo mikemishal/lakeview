@@ -231,6 +231,37 @@ function formatBedroomBathroom(property: CleanerScheduleProperty): string {
   return [bedroomsLabel, bathroomsLabel].filter((value) => value.length > 0).join(" / ");
 }
 
+function getPrimaryProviderAction(job: CleanerScheduleJob, isDueToday: boolean): {
+  label: string;
+  nextStatus: string | null;
+} {
+  if (job.status === "assigned") {
+    return { label: "Accept job", nextStatus: "accepted" };
+  }
+
+  if (job.status === "accepted" && isDueToday) {
+    return { label: "Start job", nextStatus: "in_progress" };
+  }
+
+  if (job.status === "in_progress") {
+    return { label: "Complete job", nextStatus: "completed" };
+  }
+
+  if (job.status === "accepted") {
+    return { label: "View details", nextStatus: null };
+  }
+
+  if (job.status === "completed") {
+    return { label: "View details", nextStatus: null };
+  }
+
+  if (job.status === "cancelled") {
+    return { label: "View details", nextStatus: null };
+  }
+
+  return { label: "View details", nextStatus: null };
+}
+
 export default function CleanerSchedule({
   jobs,
   onStatusChange,
@@ -249,7 +280,7 @@ export default function CleanerSchedule({
   const todayDateOnly = toDateOnly(new Date().toISOString());
 
   if (jobs.length === 0) {
-    return <p className="text-sm text-slate-600">No assigned cleaning jobs.</p>;
+    return <p className="text-sm text-slate-600">No jobs assigned yet.</p>;
   }
 
   const grouped = jobs.reduce<Record<string, CleanerScheduleJob[]>>((accumulator, job) => {
@@ -323,6 +354,7 @@ export default function CleanerSchedule({
                       job.calendarEvent !== null &&
                       toDateOnly(job.scheduledDate) === toDateOnly(job.calendarEvent.checkOutDate);
                     const isManualJob = job.jobSource === "manual";
+                    const primaryAction = getPrimaryProviderAction(job, isDueToday);
 
                     return (
                       <>
@@ -448,15 +480,45 @@ export default function CleanerSchedule({
                     ) : null}
                   </div>
 
-                  <div className="mt-2">
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (primaryAction.nextStatus && onStatusChange) {
+                          onStatusChange(job.id, primaryAction.nextStatus);
+                          return;
+                        }
+                        setSelectedDetailsJobId(job.id);
+                      }}
+                      disabled={Boolean(primaryAction.nextStatus && statusUpdatingJobId === job.id)}
+                      className="min-h-11 w-full rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                    >
+                      {primaryAction.nextStatus && statusUpdatingJobId === job.id ? "Updating..." : primaryAction.label}
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setSelectedDetailsJobId(job.id)}
-                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:w-auto"
                     >
                       View details
                     </button>
                   </div>
+
+                  <details className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+                    <summary className="cursor-pointer text-sm font-medium text-slate-800">More</summary>
+
+                    <div className="mt-3 space-y-2">
+                      {job.status === "assigned" && onStatusChange ? (
+                        <button
+                          type="button"
+                          onClick={() => onStatusChange(job.id, "declined")}
+                          disabled={statusUpdatingJobId === job.id}
+                          className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        >
+                          Decline job
+                        </button>
+                      ) : null}
 
                   <section className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-white p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -469,9 +531,9 @@ export default function CleanerSchedule({
                             setDraftNotes(job.notes ?? "");
                           }}
                           disabled={notesUpdatingJobId === job.id}
-                          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="min-h-11 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {job.notes ? "Edit notes" : "Add notes"}
+                          {job.notes ? "Add note" : "Add note"}
                         </button>
                       ) : null}
                     </div>
@@ -488,7 +550,7 @@ export default function CleanerSchedule({
                           className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
                         />
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row">
                           <button
                             type="button"
                             onClick={() => {
@@ -499,9 +561,9 @@ export default function CleanerSchedule({
                               setEditingNotesJobId("");
                             }}
                             disabled={notesUpdatingJobId === job.id}
-                            className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            Save notes
+                            Save note
                           </button>
                           <button
                             type="button"
@@ -510,7 +572,7 @@ export default function CleanerSchedule({
                               setDraftNotes("");
                             }}
                             disabled={notesUpdatingJobId === job.id}
-                            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="min-h-11 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             Cancel
                           </button>
@@ -524,7 +586,7 @@ export default function CleanerSchedule({
                   </section>
 
                   <section className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-white p-3">
-                    <h4 className="text-sm font-medium text-slate-900">Issue flags</h4>
+                    <h4 className="text-sm font-medium text-slate-900">Report issue</h4>
 
                     <div className="space-y-2 text-sm text-slate-700">
                       <label className="flex items-center gap-2">
@@ -578,73 +640,6 @@ export default function CleanerSchedule({
                     ) : null}
                   </section>
 
-                  {(onStatusChange || job.status === "completed" || job.status === "cancelled") ? (
-                    <section className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-white p-3">
-                      <h4 className="text-sm font-medium text-slate-900">Cleaner actions</h4>
-
-                      {onStatusChange && job.status === "assigned" ? (
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => onStatusChange(job.id, "accepted")}
-                            disabled={statusUpdatingJobId === job.id}
-                            className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            Accept job
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onStatusChange(job.id, "declined")}
-                            disabled={statusUpdatingJobId === job.id}
-                            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            Decline job
-                          </button>
-                        </div>
-                      ) : null}
-
-                      {onStatusChange && job.status === "accepted" ? (
-                        <button
-                          type="button"
-                          onClick={() => onStatusChange(job.id, "in_progress")}
-                          disabled={statusUpdatingJobId === job.id}
-                          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Start job
-                        </button>
-                      ) : null}
-
-                      {onStatusChange && job.status === "in_progress" ? (
-                        <button
-                          type="button"
-                          onClick={() => onStatusChange(job.id, "completed")}
-                          disabled={statusUpdatingJobId === job.id}
-                          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Complete job
-                        </button>
-                      ) : null}
-
-                      {job.status === "completed" ? (
-                        <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
-                          Job completed
-                        </span>
-                      ) : null}
-
-                      {job.status === "cancelled" ? (
-                        <p className="text-xs text-slate-600">This job is cancelled.</p>
-                      ) : null}
-
-                      {job.status === "declined" ? (
-                        <p className="text-xs text-slate-600">This job was declined.</p>
-                      ) : null}
-
-                      {statusUpdatingJobId === job.id ? (
-                        <p className="text-xs text-slate-500">Updating...</p>
-                      ) : null}
-                    </section>
-                  ) : null}
-
                   {(() => {
                     const activityItems = [
                       { label: "Accepted", value: job.acceptedAt },
@@ -667,6 +662,8 @@ export default function CleanerSchedule({
                       </section>
                     ) : null;
                   })()}
+                    </div>
+                  </details>
                       </>
                     );
                   })()}

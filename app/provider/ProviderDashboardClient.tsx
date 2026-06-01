@@ -969,7 +969,7 @@ export default function ProviderPage() {
 
   const providerQueueEmptyMessage = (() => {
     if (providerActiveQueue === "pending_accept") {
-      return "No pending jobs";
+      return "You're all caught up today.";
     }
     if (providerActiveQueue === "future") {
       return "No upcoming jobs";
@@ -978,7 +978,7 @@ export default function ProviderPage() {
       return "Completed jobs will appear here";
     }
 
-    return "No jobs in this queue.";
+    return "No jobs assigned yet.";
   })();
 
   const hasProviderDashboard = Boolean(
@@ -1161,7 +1161,7 @@ export default function ProviderPage() {
                 key={tab.id}
                 type="button"
                 onClick={() => updateProviderTab(tab.id)}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                className={`min-h-11 rounded-md px-4 py-2.5 text-sm font-medium transition ${
                   providerActiveTab === tab.id
                     ? "bg-slate-900 text-white"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
@@ -1259,7 +1259,7 @@ export default function ProviderPage() {
                 onClick={() => {
                   void refreshProviderDashboardData();
                 }}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="min-h-11 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 Refresh dashboard
               </button>

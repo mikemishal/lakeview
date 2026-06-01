@@ -735,8 +735,8 @@ export default function HomePage() {
     }
     if (ownerActiveQueue === "future_needs_assignment") {
       return {
-        title: "Needs assignment",
-        description: "Future jobs without a cleaner assigned yet.",
+        title: "Needs provider",
+        description: "Future jobs that still need a provider.",
       };
     }
     if (ownerActiveQueue === "future_assigned") {
@@ -2216,7 +2216,7 @@ export default function HomePage() {
             onClick={() => {
               void refreshOwnerDashboardData();
             }}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            className="min-h-11 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
             Refresh dashboard
           </button>
@@ -2236,7 +2236,7 @@ export default function HomePage() {
                 key={tab.id}
                 type="button"
                 onClick={() => updateOwnerTab(tab.id)}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                className={`min-h-11 rounded-md px-4 py-2.5 text-sm font-medium transition ${
                   ownerActiveTab === tab.id
                     ? "bg-slate-900 text-white"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
@@ -2964,7 +2964,7 @@ export default function HomePage() {
                         : "border-slate-200 hover:bg-slate-50"
                   }`}
                 >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Needs assignment</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Needs provider</p>
                   <p className="mt-1 text-2xl font-semibold text-slate-900">{futureNeedsAssignment}</p>
                 </button>
                 <button
@@ -3256,7 +3256,7 @@ export default function HomePage() {
                 ) : null}
 
                 {ownerActiveQueue !== "notification_job" && ownerQueueJobs.length === 0 ? (
-                  <p className="text-sm text-slate-600">No jobs in this queue.</p>
+                  <p className="text-sm text-slate-600">No jobs assigned yet.</p>
                 ) : null}
               </>
             )}
@@ -3288,7 +3288,7 @@ export default function HomePage() {
 
               <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-slate-900">Cleaning jobs</h3>
-            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <label htmlFor="cleaningJobStatusFilter" className="text-sm text-slate-700">
                 Status
               </label>
@@ -3296,10 +3296,10 @@ export default function HomePage() {
                 id="cleaningJobStatusFilter"
                 value={cleaningJobStatusFilter}
                 onChange={(event) => setCleaningJobStatusFilter(event.target.value)}
-                className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-slate-500"
+                className="min-h-11 rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-slate-500"
               >
                 <option value="all">All</option>
-                <option value="needs_assignment">Needs assignment</option>
+                <option value="needs_assignment">Needs provider</option>
                 <option value="assigned">Assigned</option>
                 <option value="declined">Declined</option>
                 <option value="accepted">Accepted</option>
@@ -3315,10 +3315,10 @@ export default function HomePage() {
                 id="cleaningJobProviderFilter"
                 value={cleaningJobProviderFilter}
                 onChange={(event) => setCleaningJobProviderFilter(event.target.value)}
-                className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-slate-500"
+                className="min-h-11 rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-slate-500"
               >
                 <option value="all">All cleaners</option>
-                <option value="unassigned">Unassigned</option>
+                <option value="unassigned">Needs provider</option>
                 {cleanerProviders.map((provider) => (
                   <option key={provider.id} value={provider.id}>
                     {provider.companyName ? `${provider.name} (${provider.companyName})` : provider.name}
@@ -3329,7 +3329,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setCleaningJobsView("list")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                className={`min-h-11 rounded-md px-4 py-2.5 text-sm font-medium transition ${
                   cleaningJobsView === "list"
                     ? "bg-slate-900 text-white"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
@@ -3340,7 +3340,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setCleaningJobsView("grouped")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                className={`min-h-11 rounded-md px-4 py-2.5 text-sm font-medium transition ${
                   cleaningJobsView === "grouped"
                     ? "bg-slate-900 text-white"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
@@ -3351,7 +3351,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => updateOwnerTab("calendar")}
-                className="rounded-md bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
+                className="min-h-11 rounded-md bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
               >
                 Calendar
               </button>
@@ -3410,7 +3410,7 @@ export default function HomePage() {
 
               {!loadingCleaningJobsPropertyId && !cleaningJobsError && cleaningJobs.length === 0 ? (
             <EmptyState
-              title="No jobs yet"
+              title="No jobs assigned yet"
               message="Create your first job to begin dispatching work."
               actionLabel="Create your first job"
               onAction={() => window.scrollTo({ top: 0, behavior: "smooth" })}

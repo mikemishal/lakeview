@@ -8,7 +8,6 @@ export const metadata: Metadata = {
   description: "Property service operations for short-term rental owners and providers.",
   manifest: "/manifest.webmanifest",
   applicationName: "Lakeview",
-  themeColor: "#0f2742",
   appleWebApp: {
     capable: true,
     title: "Lakeview",
