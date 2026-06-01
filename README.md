@@ -30,3 +30,11 @@ Current milestone: Airbnb calendar sync viewer.
 - Calendar URL is not saved yet.
 - Does not create cleaning jobs yet.
 - iCal feed may include blocked dates such as "Airbnb (Not available)", not only reservations.
+
+## Mobile install testing
+
+1. Deploy to Azure.
+2. Open https://lakeview-prod.azurewebsites.net on a phone.
+3. iPhone: use Safari -> Share -> Add to Home Screen.
+4. Android: use Chrome -> menu -> Add to Home screen or Install app.
+5. Launch Lakeview from the phone home screen and test sign-in/onboarding/dashboard.

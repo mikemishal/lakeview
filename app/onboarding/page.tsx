@@ -335,13 +335,24 @@ export default function OnboardingPage() {
       ? "Create provider profile"
       : "Create owner and provider profiles";
 
+  const roleContext = hasBothProfiles
+    ? "both"
+    : hasOwnerProfile
+    ? "owner"
+    : hasProviderProfile
+    ? "provider"
+    : undefined;
+
   return (
     <>
       <AppHeader
         currentSection="onboarding"
+        roleContext={roleContext}
         showProfilesLink
         showOwnerLink={hasOwnerProfile}
         showProviderLink={hasProviderProfile}
+        showPropertiesLink={hasOwnerProfile}
+        showJobsLink={hasOwnerProfile || hasProviderProfile}
       />
       <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[radial-gradient(circle_at_top,_#f8fafc_0%,_#e2e8f0_55%,_#cbd5e1_100%)] px-4 py-12">
         <section className="w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-300/40">

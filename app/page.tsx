@@ -10,8 +10,8 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-12 text-white">
       <div className="mx-auto flex max-w-5xl flex-col gap-10">
-        <header className="flex items-center justify-between">
-          <div>
+        <header className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">
               Project Lakeview
             </p>
@@ -25,9 +25,26 @@ export default function Home() {
           </div>
 
           <Show when="signed-in">
-            <UserButton />
+            <div className="self-start sm:self-center">
+              <UserButton />
+            </div>
           </Show>
         </header>
+
+        <section className="rounded-2xl border border-slate-700 bg-slate-900/80 p-5 shadow-lg">
+          <h2 className="text-lg font-semibold">Install Lakeview on your phone</h2>
+          <p className="mt-2 text-sm text-slate-300">
+            Add Lakeview to your home screen for quicker access during turnovers and service jobs.
+          </p>
+          <ul className="mt-3 space-y-2 text-sm text-slate-300">
+            <li>
+              iPhone: Open Lakeview in Safari, tap Share, then Add to Home Screen.
+            </li>
+            <li>
+              Android: Open Lakeview in Chrome, tap the menu, then Add to Home screen or Install app.
+            </li>
+          </ul>
+        </section>
 
         <Show when="signed-out">
           <section className="rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-lg">

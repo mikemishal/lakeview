@@ -410,6 +410,7 @@ const POLLING_INTERVAL_MS = 10_000;
 export default function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isDevelopment = process.env.NODE_ENV !== "production";
 
   const [propertyName, setPropertyName] = useState("");
   const [propertyAddress, setPropertyAddress] = useState("");
@@ -532,6 +533,7 @@ export default function HomePage() {
   const [ownerNotificationsError, setOwnerNotificationsError] = useState("");
   const [currentAccountProfile, setCurrentAccountProfile] =
     useState<AccountProfileSummary | null>(null);
+  const [loadingOwnerAccess, setLoadingOwnerAccess] = useState(true);
   const [currentOwnerProfile, setCurrentOwnerProfile] = useState<OwnerProfileSummary | null>(null);
   const [currentServiceProvider, setCurrentServiceProvider] = useState<{ id: string } | null>(null);
   const [claimingLegacyProperties, setClaimingLegacyProperties] = useState(false);
@@ -556,7 +558,7 @@ export default function HomePage() {
       value === "calendar" ||
       value === "properties" ||
       value === "providers" ||
-      value === "developer"
+      (isDevelopment && value === "developer")
     );
   }
 
@@ -1104,6 +1106,10 @@ export default function HomePage() {
           setCurrentAccountProfile(null);
           setCurrentOwnerProfile(null);
           setCurrentServiceProvider(null);
+        }
+      } finally {
+        if (isActive) {
+          setLoadingOwnerAccess(false);
         }
       }
     }
@@ -2166,9 +2172,12 @@ export default function HomePage() {
     <>
     <AppHeader
       currentSection="owner"
+      roleContext={currentServiceProvider ? "both" : "owner"}
       showProfilesLink
       showOwnerLink={Boolean(currentOwnerProfile && !inviteCodeBlocked)}
       showProviderLink={Boolean(currentOwnerProfile && currentServiceProvider && !inviteCodeBlocked)}
+      showPropertiesLink={Boolean(currentOwnerProfile && !inviteCodeBlocked)}
+      showJobsLink={Boolean(currentOwnerProfile && !inviteCodeBlocked)}
     />
     <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8 space-y-2">
@@ -2219,7 +2228,7 @@ export default function HomePage() {
               { id: "calendar", label: "Calendar" },
               { id: "properties", label: "Properties" },
               { id: "providers", label: "Providers" },
-              { id: "developer", label: "Developer" },
+              ...(isDevelopment ? ([{ id: "developer", label: "Developer" }] as const) : []),
             ] as const).map((tab) => (
               <button
                 key={tab.id}
@@ -2238,7 +2247,26 @@ export default function HomePage() {
         ) : null}
       </header>
 
-      {inviteCodeBlocked ? (
+      {loadingOwnerAccess ? (
+        <EmptyState
+          variant="loading"
+          title="Loading dashboard"
+          message="Checking your account access and owner profile."
+        />
+      ) : !currentAccountProfile ? (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <h2 className="text-sm font-semibold text-amber-900">Account profile required</h2>
+          <p className="mt-1 text-sm text-amber-800">
+            Complete onboarding to finish account setup before using the Owner Dashboard.
+          </p>
+          <Link
+            href="/onboarding"
+            className="mt-3 inline-flex rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-100"
+          >
+            Go to onboarding
+          </Link>
+        </section>
+      ) : inviteCodeBlocked ? (
         <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
           <h2 className="text-sm font-semibold text-amber-900">Invite code required</h2>
           <p className="mt-1 text-sm text-amber-800">
@@ -2270,6 +2298,9 @@ export default function HomePage() {
           notifications={ownerNotifications}
           loading={loadingOwnerNotifications}
           error={ownerNotificationsError}
+          onRetry={() => {
+            void loadOwnerNotifications();
+          }}
           onMarkRead={handleMarkOwnerNotificationRead}
           onMarkAllRead={handleMarkAllOwnerNotificationsRead}
           onNotificationClick={handleOwnerNotificationClick}
@@ -2385,9 +2416,18 @@ export default function HomePage() {
           <h3 className="text-sm font-semibold text-slate-900">Saved properties</h3>
 
           {loadingProperties ? (
-            <p className="text-sm text-slate-600">Loading saved properties...</p>
+            <EmptyState
+              variant="loading"
+              title="Loading properties"
+              message="Fetching your property list."
+            />
           ) : properties.length === 0 ? (
-            <p className="text-sm text-slate-600">No saved properties yet.</p>
+            <EmptyState
+              title="No properties yet"
+              message="Add your first property to start syncing reservations and generating cleaning jobs."
+              actionLabel="Add your first property"
+              onAction={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            />
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
               {properties.map((property) => (
@@ -2630,7 +2670,11 @@ export default function HomePage() {
           />
 
           {loadingServiceProviders ? (
-            <p className="text-sm text-slate-600">Loading service providers...</p>
+            <EmptyState
+              variant="loading"
+              title="Loading providers"
+              message="Fetching available providers."
+            />
           ) : null}
 
           {serviceProviderError ? (
@@ -2646,7 +2690,12 @@ export default function HomePage() {
           ) : null}
 
           {!loadingServiceProviders && serviceProviders.length === 0 ? (
-            <p className="text-sm text-slate-600">No service providers saved yet.</p>
+            <EmptyState
+              title="No providers assigned"
+              message="Assign a provider to start routing jobs."
+              actionLabel="Assign a provider"
+              onAction={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            />
           ) : null}
 
           {serviceProviders.length > 0 ? (
@@ -2760,7 +2809,7 @@ export default function HomePage() {
             <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-semibold text-slate-900">Job summary</h4>
-              <div className="inline-flex rounded-md border border-slate-300 bg-white p-1">
+              <div className="flex flex-wrap rounded-md border border-slate-300 bg-white p-1">
                 <button
                   type="button"
                   onClick={() => setFutureSummaryRange(7)}
@@ -3227,7 +3276,11 @@ export default function HomePage() {
               ) : null}
 
               {loadingCleaningJobsPropertyId ? (
-            <p className="text-sm text-slate-600">Loading cleaning jobs...</p>
+            <EmptyState
+              variant="loading"
+              title="Loading jobs"
+              message="Fetching cleaning jobs for this property."
+            />
               ) : null}
 
               {cleaningJobsError ? (
@@ -3267,7 +3320,12 @@ export default function HomePage() {
               ) : null}
 
               {!loadingCleaningJobsPropertyId && !cleaningJobsError && cleaningJobs.length === 0 ? (
-            <p className="text-sm text-slate-600">No cleaning jobs generated yet.</p>
+            <EmptyState
+              title="No jobs yet"
+              message="Create your first job to begin dispatching work."
+              actionLabel="Create your first job"
+              onAction={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            />
               ) : null}
 
               {!loadingCleaningJobsPropertyId && !cleaningJobsError && cleaningJobs.length > 0 && filteredCleaningJobs.length === 0 ? (
@@ -3371,7 +3429,7 @@ export default function HomePage() {
           </section>
         ) : null}
 
-        {ownerActiveTab === "developer" ? (
+        {isDevelopment && ownerActiveTab === "developer" ? (
           <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="space-y-1">

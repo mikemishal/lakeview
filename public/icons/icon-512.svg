@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Lakeview icon">
+  <rect width="512" height="512" rx="104" fill="#0f2742" />
+  <rect x="28" y="28" width="456" height="456" rx="90" fill="none" stroke="#ffffff" stroke-opacity="0.2" stroke-width="10" />
+  <text x="256" y="302" text-anchor="middle" fill="#ffffff" font-size="184" font-family="Segoe UI, Arial, sans-serif" font-weight="700">LV</text>
+</svg>

@@ -7,6 +7,7 @@ import CleanerSchedule, { type CleanerScheduleJob } from "@/components/CleanerSc
 import ProviderJobCalendar from "@/components/ProviderJobCalendar";
 import NotificationPanel, { type AppNotification } from "@/components/NotificationPanel";
 import AppHeader from "@/components/AppHeader";
+import EmptyState from "@/components/EmptyState";
 
 type ServiceProvider = {
   id: string;
@@ -37,6 +38,7 @@ type AccountProfileSummary = {
 
 type OnboardingProfileResponse = {
   accountProfile: AccountProfileSummary | null;
+  ownerProfile?: { id: string } | null;
 };
 
 type ProviderCleaningJobsResponse = {
@@ -126,11 +128,7 @@ const POLLING_INTERVAL_MS = 10_000;
 export default function ProviderPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isDevelopment = process.env.NODE_ENV === "development";
-
-  const [cleaners, setCleaners] = useState<ServiceProvider[]>([]);
-  const [loadingCleaners, setLoadingCleaners] = useState(isDevelopment);
-  const [cleanersError, setCleanersError] = useState("");
+  const isDevelopment = process.env.NODE_ENV !== "production";
 
   const [selectedCleanerId, setSelectedCleanerId] = useState("");
   const [cleanerScheduleJobs, setCleanerScheduleJobs] = useState<CleanerScheduleJob[]>([]);
@@ -153,6 +151,7 @@ export default function ProviderPage() {
   const [focusedNotificationJobError, setFocusedNotificationJobError] = useState("");
   const [currentAccountProfile, setCurrentAccountProfile] =
     useState<AccountProfileSummary | null>(null);
+  const [hasOwnerProfile, setHasOwnerProfile] = useState(false);
   const [currentProviderProfile, setCurrentProviderProfile] = useState<ServiceProvider | null>(null);
   const [loadingCurrentProviderProfile, setLoadingCurrentProviderProfile] = useState(true);
   const [unclaimedProviders, setUnclaimedProviders] = useState<ServiceProvider[]>([]);
@@ -186,50 +185,6 @@ export default function ProviderPage() {
     },
     [router, searchParams]
   );
-
-  useEffect(() => {
-    if (!isDevelopment) {
-      return;
-    }
-
-    let isActive = true;
-
-    async function loadCleaners() {
-      setLoadingCleaners(true);
-      setCleanersError("");
-
-      try {
-        const response = await fetch("/api/service-providers?serviceType=cleaner");
-        const data = (await response.json()) as ServiceProvidersResponse | ApiError;
-
-        if (!response.ok) {
-          if (isActive) {
-            setCleanersError((data as ApiError).error || "Failed to load cleaners.");
-          }
-          return;
-        }
-
-        if (isActive) {
-          const loaded = (data as ServiceProvidersResponse).serviceProviders;
-          setCleaners(loaded.filter((provider) => provider.active));
-        }
-      } catch {
-        if (isActive) {
-          setCleanersError("Failed to load cleaners.");
-        }
-      } finally {
-        if (isActive) {
-          setLoadingCleaners(false);
-        }
-      }
-    }
-
-    void loadCleaners();
-
-    return () => {
-      isActive = false;
-    };
-  }, [isDevelopment]);
 
   const loadUnclaimedProviders = useCallback(async () => {
     setLoadingUnclaimedProviders(true);
@@ -387,15 +342,20 @@ export default function ProviderPage() {
         const onboardingAccountProfile = onboardingResponse.ok
           ? (onboardingData as OnboardingProfileResponse).accountProfile
           : null;
+        const onboardingOwnerProfile = onboardingResponse.ok
+          ? Boolean((onboardingData as OnboardingProfileResponse).ownerProfile)
+          : false;
         const inviteBlocked = Boolean(
           onboardingAccountProfile && !onboardingAccountProfile.inviteCodeVerified
         );
 
         setCurrentAccountProfile(onboardingAccountProfile);
+        setHasOwnerProfile(onboardingOwnerProfile);
 
         if (!currentProviderResponse.ok) {
           if (isActive) {
             setCurrentProviderProfile(null);
+            setSelectedCleanerId("");
             if (!inviteBlocked) {
               await loadUnclaimedProviders();
             }
@@ -411,11 +371,15 @@ export default function ProviderPage() {
             await handleLoadSchedule(currentProvider.id);
           } else if (isDevelopment && !inviteBlocked) {
             await loadUnclaimedProviders();
+            setSelectedCleanerId("");
+          } else {
+            setSelectedCleanerId("");
           }
         }
       } catch {
         if (isActive) {
           setCurrentAccountProfile(null);
+          setHasOwnerProfile(false);
           setCurrentProviderProfile(null);
           if (isDevelopment) {
             await loadUnclaimedProviders();
@@ -469,13 +433,6 @@ export default function ProviderPage() {
       setClaimProviderSuccess("Provider profile claimed.");
       setSelectedUnclaimedProviderId("");
       setUnclaimedProviders([]);
-      setCleaners((previous) => {
-        if (previous.some((provider) => provider.id === claimedProvider.id)) {
-          return previous;
-        }
-
-        return [claimedProvider, ...previous];
-      });
 
       await handleLoadSchedule(claimedProvider.id);
     } catch {
@@ -1005,16 +962,33 @@ export default function ProviderPage() {
     };
   })();
 
+  const providerQueueEmptyMessage = (() => {
+    if (providerActiveQueue === "pending_accept") {
+      return "No pending jobs";
+    }
+    if (providerActiveQueue === "future") {
+      return "No upcoming jobs";
+    }
+    if (providerActiveQueue === "completed_past") {
+      return "Completed jobs will appear here";
+    }
+
+    return "No jobs in this queue.";
+  })();
+
   const hasProviderDashboard = Boolean(
-    !inviteCodeBlocked && (currentProviderProfile || (isDevelopment && selectedCleanerId))
+    !inviteCodeBlocked && currentAccountProfile && currentProviderProfile
   );
 
   return (
     <>
     <AppHeader
       currentSection="provider"
+      roleContext={hasOwnerProfile ? "both" : "provider"}
       showProfilesLink
       showProviderLink={Boolean(currentProviderProfile && !inviteCodeBlocked)}
+      showOwnerLink={Boolean(hasOwnerProfile && currentProviderProfile && !inviteCodeBlocked)}
+      showJobsLink={Boolean(currentProviderProfile && !inviteCodeBlocked)}
     />
     <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8 space-y-2">
@@ -1035,48 +1009,29 @@ export default function ProviderPage() {
           </p>
         ) : null}
 
-        {isDevelopment && !inviteCodeBlocked ? (
-          <details className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <summary className="cursor-pointer text-sm font-medium text-slate-700">
-              Development provider selector
-            </summary>
-            <div className="mt-3 max-w-sm space-y-1">
-              <label htmlFor="providerCleanerSelect" className="block text-sm font-medium text-slate-700">
-                Cleaner
-              </label>
-              <select
-                id="providerCleanerSelect"
-                value={selectedCleanerId}
-                onChange={(event) => {
-                  void handleLoadSchedule(event.target.value);
-                }}
-                disabled={loadingCleaners}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <option value="">Select cleaner</option>
-                {cleaners.map((cleaner) => (
-                  <option key={cleaner.id} value={cleaner.id}>
-                    {cleaner.companyName ? `${cleaner.name} (${cleaner.companyName})` : cleaner.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </details>
-        ) : null}
-
-        {isDevelopment && loadingCleaners ? <p className="text-sm text-slate-600">Loading cleaners...</p> : null}
-
-        {cleanersError ? (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {cleanersError}
-          </p>
-        ) : null}
-
         {loadingCurrentProviderProfile ? (
-          <p className="text-sm text-slate-600">Loading provider profile...</p>
+          <EmptyState
+            variant="loading"
+            title="Loading provider access"
+            message="Checking your provider profile and role access."
+          />
         ) : null}
 
-        {!loadingCurrentProviderProfile && inviteCodeBlocked ? (
+        {!loadingCurrentProviderProfile && !currentAccountProfile ? (
+          <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold text-amber-900">Account profile required</h2>
+              <p className="text-sm text-amber-800">
+                Complete onboarding to finish account setup before using the Provider Dashboard.
+              </p>
+              <Link href="/onboarding" className="text-sm font-medium text-amber-900 underline">
+                Go to onboarding
+              </Link>
+            </div>
+          </section>
+        ) : null}
+
+        {!loadingCurrentProviderProfile && currentAccountProfile && inviteCodeBlocked ? (
           <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <div className="space-y-1">
               <h2 className="text-sm font-semibold text-amber-900">Invite code required</h2>
@@ -1090,7 +1045,7 @@ export default function ProviderPage() {
           </section>
         ) : null}
 
-        {!loadingCurrentProviderProfile && !currentProviderProfile && !inviteCodeBlocked ? (
+        {!loadingCurrentProviderProfile && currentAccountProfile && !currentProviderProfile && !inviteCodeBlocked ? (
           <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <div className="space-y-1">
               <h2 className="text-sm font-semibold text-amber-900">Provider profile required</h2>
@@ -1159,7 +1114,13 @@ export default function ProviderPage() {
           </section>
         ) : null}
 
-        {loadingSchedule ? <p className="text-sm text-slate-600">Loading cleaner schedule...</p> : null}
+        {loadingSchedule ? (
+          <EmptyState
+            variant="loading"
+            title="Loading jobs"
+            message="Fetching your provider schedule and assignments."
+          />
+        ) : null}
 
         {scheduleError ? (
           <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -1215,6 +1176,11 @@ export default function ProviderPage() {
                 notifications={providerNotifications}
                 loading={loadingProviderNotifications}
                 error={providerNotificationsError}
+                onRetry={() => {
+                  if (selectedCleanerId) {
+                    void loadProviderNotifications(selectedCleanerId);
+                  }
+                }}
                 onMarkRead={handleMarkProviderNotificationRead}
                 onMarkAllRead={handleMarkAllProviderNotificationsRead}
                 onNotificationClick={handleProviderNotificationClick}
@@ -1238,7 +1204,7 @@ export default function ProviderPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-slate-900">Provider summary</h2>
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex rounded-md border border-slate-300 bg-white p-1">
+                  <div className="flex flex-wrap rounded-md border border-slate-300 bg-white p-1">
                     <button
                       type="button"
                       onClick={() => setProviderSummaryRange(7)}
@@ -1473,7 +1439,7 @@ export default function ProviderPage() {
                   ) : null}
 
                   {providerActiveQueue !== "notification_job" && providerQueueJobs.length === 0 ? (
-                    <p className="text-sm text-slate-600">No jobs in this queue.</p>
+                    <EmptyState title={providerQueueEmptyMessage} message="Check back later or refresh to see new assignments." />
                   ) : null}
                 </>
               )}

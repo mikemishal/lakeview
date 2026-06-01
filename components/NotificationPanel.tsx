@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import EmptyState from "@/components/EmptyState";
 
 export type AppNotification = {
   id: string;
@@ -18,6 +19,7 @@ type NotificationPanelProps = {
   notifications: AppNotification[];
   loading: boolean;
   error: string;
+  onRetry?: () => void;
   onMarkRead: (notificationId: string) => void;
   onMarkAllRead: () => void;
   onNotificationClick?: (notification: AppNotification) => void;
@@ -41,6 +43,7 @@ export default function NotificationPanel({
   notifications,
   loading,
   error,
+  onRetry,
   onMarkRead,
   onMarkAllRead,
   onNotificationClick,
@@ -66,19 +69,26 @@ export default function NotificationPanel({
       </div>
 
       {loading
-        ? renderBody(<p className="text-sm text-slate-600">Loading notifications...</p>)
-        : null}
-
-      {!loading && error
         ? renderBody(
-            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </p>
+            <EmptyState
+              variant="loading"
+              title="Loading notifications"
+              message="Fetching your latest unread notifications."
+            />
           )
         : null}
 
+      {!loading && error
+        ? renderBody(<EmptyState variant="error" title="Notifications unavailable" message={error} onRetry={onRetry} />)
+        : null}
+
       {!loading && !error && notifications.length === 0
-        ? renderBody(<p className="text-sm text-slate-600">No new notifications.</p>)
+        ? renderBody(
+            <EmptyState
+              title="All caught up"
+              message="No new notifications."
+            />
+          )
         : null}
 
       {!loading && !error && notifications.length > 0
