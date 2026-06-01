@@ -54,7 +54,7 @@ export default function AppHeader({
           ) : null}
         </div>
 
-        <nav className="flex max-w-full flex-wrap items-center justify-end gap-2">
+        <nav className="hidden max-w-full flex-wrap items-center justify-end gap-2 md:flex">
           {showOwnerLink ? (
             <Link href="/owner" className={navClass(currentSection === "owner")}>
               Owner Dashboard
@@ -85,7 +85,9 @@ export default function AppHeader({
           ) : null}
         </nav>
 
-        <UserButton />
+        <div className="shrink-0">
+          <UserButton />
+        </div>
       </div>
     </header>
   );

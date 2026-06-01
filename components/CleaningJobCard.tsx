@@ -130,13 +130,16 @@ const activityDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
 
 function formatStatusLabel(status: string): string {
   const knownLabels: Record<string, string> = {
-    needs_assignment: "Needs assignment",
+    needs_assignment: "Needs provider",
     assigned: "Assigned",
     declined: "Declined",
     accepted: "Accepted",
     in_progress: "In progress",
     completed: "Completed",
     cancelled: "Cancelled",
+    issue_reported: "Needs attention",
+    pending_acceptance: "Waiting for provider",
+    unassigned: "Needs provider",
   };
 
   if (knownLabels[status]) {
@@ -358,7 +361,7 @@ export default function CleaningJobCard({
       <div className="mt-2 space-y-1">
         <p className="text-sm text-slate-700">
           <span className="font-medium text-slate-900">Assigned to:</span>{" "}
-          {job.assignedProvider ? job.assignedProvider.name : "Unassigned"}
+          {job.assignedProvider ? job.assignedProvider.name : "Needs provider"}
         </p>
         {job.assignedProvider?.companyName ? (
           <p className="text-sm text-slate-700">

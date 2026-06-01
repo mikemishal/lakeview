@@ -15,6 +15,7 @@ import ServiceProviderForm from "@/components/ServiceProviderForm";
 import EmptyState from "@/components/EmptyState";
 import NotificationPanel, { type AppNotification } from "@/components/NotificationPanel";
 import AppHeader from "@/components/AppHeader";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import {
   CalendarEventItem,
   CalendarSyncResponse,
@@ -609,6 +610,7 @@ export default function HomePage() {
   const futureJobsAll = cleaningJobs.filter(
     (job) => toDateOnly(job.scheduledDate) >= todayDateOnly
   );
+  const todayJobs = cleaningJobs.filter((job) => toDateOnly(job.scheduledDate) === todayDateOnly);
   const futureJobsInRange = futureJobsAll.filter((job) => {
     const scheduledDateOnly = toDateOnly(job.scheduledDate);
     return scheduledDateOnly <= futureRangeEndDateOnly;
@@ -2179,7 +2181,7 @@ export default function HomePage() {
       showPropertiesLink={Boolean(currentOwnerProfile && !inviteCodeBlocked)}
       showJobsLink={Boolean(currentOwnerProfile && !inviteCodeBlocked)}
     />
-    <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+    <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 pb-24 sm:px-6 lg:px-8">
       <header className="mb-8 space-y-2">
         <p className="text-sm font-medium uppercase tracking-wide text-slate-500">Project Lakeview</p>
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Owner Dashboard</h1>
@@ -2293,18 +2295,105 @@ export default function HomePage() {
       ) : (
         <>
       {ownerActiveTab === "overview" ? (
-        <NotificationPanel
-          title="Owner notifications"
-          notifications={ownerNotifications}
-          loading={loadingOwnerNotifications}
-          error={ownerNotificationsError}
-          onRetry={() => {
-            void loadOwnerNotifications();
-          }}
-          onMarkRead={handleMarkOwnerNotificationRead}
-          onMarkAllRead={handleMarkAllOwnerNotificationsRead}
-          onNotificationClick={handleOwnerNotificationClick}
-        />
+        <>
+          <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:hidden">
+            <h2 className="text-base font-semibold text-slate-900">What needs attention today</h2>
+
+            <button
+              type="button"
+              onClick={() => {
+                updateOwnerTab("jobs");
+                setOwnerActiveQueue("future_all");
+              }}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Today&apos;s jobs / turnovers</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{todayJobs.length}</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                updateOwnerTab("jobs");
+                setOwnerActiveQueue("issues_all");
+              }}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Urgent issues</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{jobsWithIssues.length}</p>
+              {jobsWithIssues.length === 0 ? <p className="mt-1 text-xs text-slate-600">All clear</p> : null}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                updateOwnerTab("jobs");
+                setOwnerActiveQueue("future_needs_assignment");
+              }}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Needs provider assignment</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{futureNeedsAssignment}</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                updateOwnerTab("jobs");
+                setOwnerActiveQueue("future_all");
+              }}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Upcoming jobs</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{futureJobsInRange.length}</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => updateOwnerTab("properties")}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Properties summary</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{properties.length}</p>
+              {properties.length === 0 ? (
+                <p className="mt-1 text-xs text-slate-600">Add your first property to start scheduling services.</p>
+              ) : null}
+            </button>
+
+            <details className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <summary className="cursor-pointer text-sm font-medium text-slate-700">Notifications</summary>
+              <div className="mt-2">
+                <NotificationPanel
+                  title="Owner notifications"
+                  notifications={ownerNotifications}
+                  loading={loadingOwnerNotifications}
+                  error={ownerNotificationsError}
+                  onRetry={() => {
+                    void loadOwnerNotifications();
+                  }}
+                  onMarkRead={handleMarkOwnerNotificationRead}
+                  onMarkAllRead={handleMarkAllOwnerNotificationsRead}
+                  onNotificationClick={handleOwnerNotificationClick}
+                />
+              </div>
+            </details>
+          </section>
+
+          <div className="hidden md:block">
+            <NotificationPanel
+              title="Owner notifications"
+              notifications={ownerNotifications}
+              loading={loadingOwnerNotifications}
+              error={ownerNotificationsError}
+              onRetry={() => {
+                void loadOwnerNotifications();
+              }}
+              onMarkRead={handleMarkOwnerNotificationRead}
+              onMarkAllRead={handleMarkAllOwnerNotificationsRead}
+              onNotificationClick={handleOwnerNotificationClick}
+            />
+          </div>
+        </>
       ) : null}
 
       <section className="space-y-4">
@@ -2806,7 +2895,7 @@ export default function HomePage() {
         {ownerActiveTab === "overview" || ownerActiveTab === "jobs" ? (
           <section className="space-y-3">
           {ownerActiveTab === "overview" ? (
-            <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm">
+            <section className="hidden space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm md:block">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-semibold text-slate-900">Job summary</h4>
               <div className="flex flex-wrap rounded-md border border-slate-300 bg-white p-1">
@@ -3016,7 +3105,7 @@ export default function HomePage() {
           ) : null}
 
           {ownerActiveTab === "overview" ? (
-            <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
+            <section className="hidden space-y-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm md:block">
             <h4 className="text-sm font-semibold text-slate-900">Issue summary</h4>
 
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -3080,7 +3169,7 @@ export default function HomePage() {
 
           {ownerActiveTab === "overview" ? (
             <section
-            className={`space-y-3 rounded-xl p-4 shadow-sm ${
+            className={`hidden space-y-3 rounded-xl p-4 shadow-sm md:block ${
               ownerActiveQueue === "notification_job"
                 ? "border border-indigo-200 bg-indigo-50/60 ring-1 ring-indigo-200"
                 : "border border-slate-200 bg-slate-50/70"
@@ -3498,6 +3587,11 @@ export default function HomePage() {
       </>
       )}
     </main>
+    <MobileBottomNav
+      mode="owner"
+      activeTab={ownerActiveTab === "developer" ? "overview" : ownerActiveTab}
+      showRoleSwitch={Boolean(currentServiceProvider)}
+    />
     </>
   );
 }

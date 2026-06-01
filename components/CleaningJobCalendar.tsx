@@ -13,13 +13,16 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 
 function formatStatusLabel(status: string): string {
   const knownLabels: Record<string, string> = {
-    needs_assignment: "Needs assignment",
+    needs_assignment: "Needs provider",
     assigned: "Assigned",
     declined: "Declined",
     accepted: "Accepted",
     in_progress: "In progress",
     completed: "Completed",
     cancelled: "Cancelled",
+    issue_reported: "Needs attention",
+    pending_acceptance: "Waiting for provider",
+    unassigned: "Needs provider",
   };
 
   if (knownLabels[status]) {

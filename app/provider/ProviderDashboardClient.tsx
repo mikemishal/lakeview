@@ -8,6 +8,7 @@ import ProviderJobCalendar from "@/components/ProviderJobCalendar";
 import NotificationPanel, { type AppNotification } from "@/components/NotificationPanel";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
+import MobileBottomNav from "@/components/MobileBottomNav";
 
 type ServiceProvider = {
   id: string;
@@ -798,6 +799,10 @@ export default function ProviderPage() {
   const futureJobsAll = cleanerScheduleJobs.filter(
     (job) => toDateOnly(job.scheduledDate) >= todayDateOnly
   );
+  const sortedFutureJobs = [...futureJobsAll].sort(
+    (a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime()
+  );
+  const nextJob = sortedFutureJobs[0] ?? null;
   const futureJobsInRange = futureJobsAll.filter((job) => {
     const scheduledDateOnly = toDateOnly(job.scheduledDate);
     return scheduledDateOnly <= futureRangeEndDateOnly;
@@ -990,7 +995,7 @@ export default function ProviderPage() {
       showOwnerLink={Boolean(hasOwnerProfile && currentProviderProfile && !inviteCodeBlocked)}
       showJobsLink={Boolean(currentProviderProfile && !inviteCodeBlocked)}
     />
-    <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+    <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 pb-24 sm:px-6 lg:px-8">
       <header className="mb-8 space-y-2">
         <p className="text-sm font-medium uppercase tracking-wide text-slate-500">Project Lakeview</p>
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Provider Dashboard</h1>
@@ -1171,20 +1176,81 @@ export default function ProviderPage() {
         {hasProviderDashboard && !loadingSchedule ? (
           <div className="space-y-3">
             {providerActiveTab === "overview" ? (
-              <NotificationPanel
-                title="Provider notifications"
-                notifications={providerNotifications}
-                loading={loadingProviderNotifications}
-                error={providerNotificationsError}
-                onRetry={() => {
-                  if (selectedCleanerId) {
-                    void loadProviderNotifications(selectedCleanerId);
-                  }
-                }}
-                onMarkRead={handleMarkProviderNotificationRead}
-                onMarkAllRead={handleMarkAllProviderNotificationsRead}
-                onNotificationClick={handleProviderNotificationClick}
-              />
+              <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:hidden">
+                <h2 className="text-base font-semibold text-slate-900">What to do now</h2>
+
+                <button
+                  type="button"
+                  onClick={() => updateProviderTab("queue")}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Next job</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {nextJob ? nextJob.title : "No upcoming jobs"}
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateProviderTab("queue");
+                    setProviderActiveQueue("pending_accept");
+                  }}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Jobs waiting for acceptance</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900">{pendingAcceptJobs.length}</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateProviderTab("queue");
+                    setProviderActiveQueue("due_today");
+                  }}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Today&apos;s jobs</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900">{jobsDueToday.length}</p>
+                  {jobsDueToday.length === 0 ? <p className="mt-1 text-xs text-slate-600">You&apos;re all caught up today.</p> : null}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateProviderTab("queue");
+                    setProviderActiveQueue("future");
+                  }}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Upcoming jobs</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900">{futureJobsInRange.length}</p>
+                </button>
+
+                <details className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <summary className="cursor-pointer text-sm font-medium text-slate-700">Completed jobs</summary>
+                  <p className="mt-2 text-sm text-slate-700">{completedPastJobs.length} completed jobs</p>
+                </details>
+              </section>
+            ) : null}
+
+            {providerActiveTab === "overview" ? (
+              <div className="hidden md:block">
+                <NotificationPanel
+                  title="Provider notifications"
+                  notifications={providerNotifications}
+                  loading={loadingProviderNotifications}
+                  error={providerNotificationsError}
+                  onRetry={() => {
+                    if (selectedCleanerId) {
+                      void loadProviderNotifications(selectedCleanerId);
+                    }
+                  }}
+                  onMarkRead={handleMarkProviderNotificationRead}
+                  onMarkAllRead={handleMarkAllProviderNotificationsRead}
+                  onNotificationClick={handleProviderNotificationClick}
+                />
+              </div>
             ) : null}
 
             <div className="flex justify-end">
@@ -1200,7 +1266,7 @@ export default function ProviderPage() {
             </div>
 
             {providerActiveTab === "overview" ? (
-              <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm">
+              <section className="hidden space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm md:block">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-slate-900">Provider summary</h2>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1375,7 +1441,7 @@ export default function ProviderPage() {
             {providerActiveTab === "overview" || providerActiveTab === "queue" ? (
               <section
               ref={providerQueueSectionRef}
-              className={`space-y-3 rounded-xl p-4 shadow-sm ${
+              className={`hidden space-y-3 rounded-xl p-4 shadow-sm md:block ${
                 providerActiveQueue === "notification_job"
                   ? "border border-indigo-200 bg-indigo-50/60 ring-1 ring-indigo-200"
                   : "border border-slate-200 bg-slate-50/70"
@@ -1465,6 +1531,11 @@ export default function ProviderPage() {
         ) : null}
       </section>
     </main>
+    <MobileBottomNav
+      mode="provider"
+      activeTab={providerActiveTab}
+      showRoleSwitch={hasOwnerProfile}
+    />
     </>
   );
 }

@@ -8,7 +8,7 @@ type ProviderJobCalendarProps = {
   jobs: CleanerScheduleJob[];
 };
 
-type CalendarView = "day" | "week" | "month";
+type CalendarView = "today" | "week" | "month";
 
 const displayDateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "long",
@@ -25,11 +25,6 @@ const monthYearFormatter = new Intl.DateTimeFormat("en-US", {
 
 const weekDayShortFormatter = new Intl.DateTimeFormat("en-US", {
   weekday: "short",
-  timeZone: "UTC",
-});
-
-const weekDayLongFormatter = new Intl.DateTimeFormat("en-US", {
-  weekday: "long",
   timeZone: "UTC",
 });
 
@@ -113,13 +108,16 @@ export function getMonthGridDates(date: Date): Date[] {
 
 function formatStatusLabel(status: string): string {
   const knownLabels: Record<string, string> = {
-    needs_assignment: "Needs assignment",
+    needs_assignment: "Needs provider",
     assigned: "Assigned",
     declined: "Declined",
     accepted: "Accepted",
     in_progress: "In progress",
     completed: "Completed",
     cancelled: "Cancelled",
+    issue_reported: "Needs attention",
+    pending_acceptance: "Waiting for provider",
+    unassigned: "Needs provider",
   };
 
   if (knownLabels[status]) {
@@ -194,7 +192,7 @@ function formatSourcePlatformLabel(sourcePlatform: string): string {
 }
 
 function getRangeLabel(view: CalendarView, currentDate: Date): string {
-  if (view === "day") {
+  if (view === "today") {
     return formatDateLabel(currentDate);
   }
 
@@ -355,8 +353,11 @@ function JobCard({
 }
 
 export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) {
-  const [view, setView] = useState<CalendarView>("week");
+  const [view, setView] = useState<CalendarView>(() =>
+    typeof window !== "undefined" && window.innerWidth < 768 ? "today" : "week"
+  );
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [selectedDateOnly, setSelectedDateOnly] = useState(toDateOnly(new Date()));
   const [selectedDetailsJobId, setSelectedDetailsJobId] = useState<string | null>(null);
 
   const jobsByDate = useMemo(() => {
@@ -375,7 +376,7 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
   }
 
   function navigatePrevious() {
-    if (view === "day") {
+    if (view === "today") {
       setCurrentDate((previous) => addDays(previous, -1));
       return;
     }
@@ -389,7 +390,7 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
   }
 
   function navigateNext() {
-    if (view === "day") {
+    if (view === "today") {
       setCurrentDate((previous) => addDays(previous, 1));
       return;
     }
@@ -415,6 +416,7 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
   const todayDateOnly = toDateOnly(new Date());
   const selectedDetailsJob =
     selectedDetailsJobId ? jobs.find((job) => job.id === selectedDetailsJobId) ?? null : null;
+  const selectedDayJobs = getJobsForDate(dateFromDateOnly(selectedDateOnly));
 
   return (
     <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -423,15 +425,18 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
           <h2 className="text-lg font-semibold text-slate-900">Job calendar</h2>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-md border border-slate-300 bg-white p-1">
+            <div className="flex flex-wrap rounded-md border border-slate-300 bg-white p-1">
               <button
                 type="button"
-                onClick={() => setView("day")}
+                onClick={() => {
+                  setView("today");
+                  setSelectedDateOnly(toDateOnly(currentDate));
+                }}
                 className={`rounded px-3 py-1.5 text-sm font-medium transition ${
-                  view === "day" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"
+                  view === "today" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"
                 }`}
               >
-                Day
+                Today
               </button>
               <button
                 type="button"
@@ -453,7 +458,7 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
               </button>
             </div>
 
-            <div className="inline-flex rounded-md border border-slate-300 bg-white p-1">
+            <div className="flex flex-wrap rounded-md border border-slate-300 bg-white p-1">
               <button
                 type="button"
                 onClick={navigatePrevious}
@@ -482,7 +487,7 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
         <p className="text-sm font-medium text-slate-700">{rangeLabel}</p>
       </header>
 
-      {view === "day" ? (
+      {view === "today" ? (
         <section className="rounded-lg border border-slate-200 bg-slate-50 p-3">
           <h3 className="mb-3 text-sm font-semibold text-slate-900">{formatDateLabel(normalizedCurrentDate)}</h3>
           <div className="space-y-2">
@@ -503,40 +508,64 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
       ) : null}
 
       {view === "week" ? (
-        <div className="overflow-x-auto">
-          <div className="grid min-w-[920px] grid-cols-7 gap-3">
+        <div className="space-y-3">
+          <div className="grid grid-cols-7 gap-2">
             {weekDates.map((date) => {
               const dayJobs = getJobsForDate(date);
+              const dateOnly = toDateOnly(date);
+              const isSelected = selectedDateOnly === dateOnly;
               return (
-                <section key={toDateOnly(date)} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <h3 className="text-sm font-semibold text-slate-900">{weekDayLongFormatter.format(date)}</h3>
-                  <p className="mb-2 text-xs text-slate-600">{formatDateLabel(date)}</p>
-
-                  <div className="space-y-2">
+                <button
+                  key={dateOnly}
+                  type="button"
+                  onClick={() => setSelectedDateOnly(dateOnly)}
+                  className={`rounded-lg border p-2 text-left transition ${
+                    isSelected
+                      ? "border-slate-400 bg-slate-100"
+                      : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+                  }`}
+                >
+                  <p className="text-[11px] font-semibold text-slate-700">{weekDayShortFormatter.format(date)}</p>
+                  <p className="text-sm font-semibold text-slate-900">{date.getUTCDate()}</p>
+                  <div className="mt-1 flex items-center gap-1">
                     {dayJobs.length > 0 ? (
-                      dayJobs.map((job) => (
-                        <JobCard
-                          key={job.id}
-                          job={job}
-                          compact
-                          onDetails={() => setSelectedDetailsJobId(job.id)}
-                          todayDateOnly={todayDateOnly}
-                        />
-                      ))
+                      <span className="rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                        {dayJobs.length}
+                      </span>
                     ) : (
-                      <p className="text-xs text-slate-500">No jobs</p>
+                      <span className="text-[10px] text-slate-400">No jobs</span>
                     )}
                   </div>
-                </section>
+                </button>
               );
             })}
           </div>
+
+          <section className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <h3 className="mb-2 text-sm font-semibold text-slate-900">
+              {formatDateLabel(`${selectedDateOnly}T00:00:00.000Z`)}
+            </h3>
+            {selectedDayJobs.length > 0 ? (
+              <div className="space-y-2">
+                {selectedDayJobs.map((job) => (
+                  <JobCard
+                    key={job.id}
+                    job={job}
+                    onDetails={() => setSelectedDetailsJobId(job.id)}
+                    todayDateOnly={todayDateOnly}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-600">No jobs scheduled for this day.</p>
+            )}
+          </section>
         </div>
       ) : null}
 
       {view === "month" ? (
-        <div className="overflow-x-auto">
-          <div className="min-w-[960px] space-y-2">
+        <div className="space-y-3">
+          <div className="space-y-2">
             <div className="grid grid-cols-7 gap-2">
               {Array.from({ length: 7 }, (_, index) => (
                 <p
@@ -552,12 +581,18 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
               {monthGridDates.map((date) => {
                 const dayJobs = getJobsForDate(date);
                 const inCurrentMonth = date.getUTCMonth() === currentMonth;
+                const dateOnly = toDateOnly(date);
+                const isSelected = selectedDateOnly === dateOnly;
 
                 return (
-                  <section
-                    key={toDateOnly(date)}
-                    className={`min-h-36 rounded-lg border p-2 ${
-                      inCurrentMonth
+                  <button
+                    key={dateOnly}
+                    type="button"
+                    onClick={() => setSelectedDateOnly(dateOnly)}
+                    className={`min-h-20 rounded-lg border p-2 text-left ${
+                      isSelected
+                        ? "border-slate-400 bg-slate-100"
+                        : inCurrentMonth
                         ? "border-slate-200 bg-slate-50"
                         : "border-slate-100 bg-slate-100/70"
                     }`}
@@ -570,26 +605,45 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
                       {date.getUTCDate()}
                     </p>
 
-                    <div className="space-y-1.5">
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
                       {dayJobs.length > 0 ? (
-                        dayJobs.map((job) => (
-                          <JobCard
-                            key={job.id}
-                            job={job}
-                            compact
-                            onDetails={() => setSelectedDetailsJobId(job.id)}
-                            todayDateOnly={todayDateOnly}
-                          />
-                        ))
+                        <>
+                          {dayJobs.slice(0, 3).map((job) => (
+                            <span key={job.id} className="h-1.5 w-1.5 rounded-full bg-slate-700" />
+                          ))}
+                          {dayJobs.length > 3 ? (
+                            <span className="text-[10px] font-medium text-slate-600">+{dayJobs.length - 3}</span>
+                          ) : null}
+                        </>
                       ) : (
                         <p className="text-xs text-slate-400">No jobs</p>
                       )}
                     </div>
-                  </section>
+                  </button>
                 );
               })}
             </div>
           </div>
+
+          <section className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <h3 className="mb-2 text-sm font-semibold text-slate-900">
+              {formatDateLabel(`${selectedDateOnly}T00:00:00.000Z`)}
+            </h3>
+            {selectedDayJobs.length > 0 ? (
+              <div className="space-y-2">
+                {selectedDayJobs.map((job) => (
+                  <JobCard
+                    key={job.id}
+                    job={job}
+                    onDetails={() => setSelectedDetailsJobId(job.id)}
+                    todayDateOnly={todayDateOnly}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-600">No jobs scheduled for this day.</p>
+            )}
+          </section>
         </div>
       ) : null}
 
