@@ -13,6 +13,10 @@ Set the following variables in your deployment platform:
 - NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL
 - SIGNUP_INVITE_CODE
 
+- CRON_SECRET - shared secret required to call the scheduled sync endpoint
+  (`/api/cron/sync`). Set the same value as the GitHub Actions `CRON_SECRET`
+  secret used by the scheduled-sync workflow.
+
 Optional:
 
 - LAKEVIEW_CALENDAR_HOST_ALLOWLIST - comma separated extra calendar host domains
