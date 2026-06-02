@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const audienceType = (searchParams.get("audienceType") ?? "").trim();
     const providerId = (searchParams.get("providerId") ?? "").trim();
+    const ownerId = (searchParams.get("ownerId") ?? "").trim();
     const unreadOnly = searchParams.get("unreadOnly") === "true";
 
     if (audienceType !== "owner" && audienceType !== "provider") {
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
 
     const where: {
       audienceType: "owner" | "provider";
+      ownerProfileId?: string;
       providerId?: string;
       ownerProfileId?: string;
       readAt?: null;

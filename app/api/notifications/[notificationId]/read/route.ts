@@ -32,8 +32,7 @@ export async function PATCH(_request: Request, context: RouteContext) {
     const ownerCanAccess =
       existingNotification.audienceType === "owner" &&
       Boolean(ownerProfile) &&
-      (existingNotification.ownerProfileId === ownerProfile?.id ||
-        existingNotification.ownerProfileId === null);
+      existingNotification.ownerProfileId === ownerProfile?.id;
 
     const providerCanAccess =
       existingNotification.audienceType === "provider" &&
