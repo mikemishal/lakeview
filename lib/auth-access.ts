@@ -71,16 +71,7 @@ export async function canOwnerAccessProperty(
     return false;
   }
 
-  if (property.ownerProfileId === ownerProfileId) {
-    return true;
-  }
-
-  // TODO: after legacy data migration, require ownerProfileId match.
-  if (property.ownerProfileId === null) {
-    return true;
-  }
-
-  return false;
+  return property.ownerProfileId === ownerProfileId;
 }
 
 export async function canOwnerAccessCleaningJob(
@@ -100,16 +91,7 @@ export async function canOwnerAccessCleaningJob(
     return false;
   }
 
-  if (cleaningJob.property.ownerProfileId === ownerProfileId) {
-    return true;
-  }
-
-  // TODO: after legacy data migration, require ownerProfileId match.
-  if (cleaningJob.property.ownerProfileId === null) {
-    return true;
-  }
-
-  return false;
+  return cleaningJob.property.ownerProfileId === ownerProfileId;
 }
 
 export async function canProviderAccessCleaningJob(

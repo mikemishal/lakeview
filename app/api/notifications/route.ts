@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const where: {
       audienceType: "owner" | "provider";
       providerId?: string;
-      OR?: { ownerProfileId: string | null }[];
+      ownerProfileId?: string;
       readAt?: null;
     } = {
       audienceType,
@@ -29,8 +29,8 @@ export async function GET(request: Request) {
     if (audienceType === "owner") {
       const ownerProfile = await requireOwnerProfile();
 
-      // TODO: later write ownerProfileId when creating owner notifications.
-      where.OR = [{ ownerProfileId: ownerProfile.id }, { ownerProfileId: null }];
+      // Owner notifications are scoped to the signed-in owner only.
+      where.ownerProfileId = ownerProfile.id;
     }
 
     if (audienceType === "provider") {

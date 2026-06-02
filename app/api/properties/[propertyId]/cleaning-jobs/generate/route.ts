@@ -81,8 +81,8 @@ export async function POST(_request: Request, context: RouteContext) {
       const checkoutDateLabel = formatCheckoutDate(event.checkOutDate);
       const title =
         cleaningType === "turnover_cleaning"
-          ? `Turnover cleaning — ${property.name} — ${checkoutDateLabel}`
-          : `Checkout cleaning — ${property.name} — ${checkoutDateLabel}`;
+          ? `Turnover cleaning - ${property.name} - ${checkoutDateLabel}`
+          : `Checkout cleaning - ${property.name} - ${checkoutDateLabel}`;
 
       if (!event.cleaningJob) {
         await prisma.cleaningJob.create({

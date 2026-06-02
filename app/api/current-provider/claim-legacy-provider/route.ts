@@ -14,6 +14,22 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
+    // Only invite-verified, onboarded accounts may claim a provider profile.
+    // Without this, any signed-in user could attach themselves to any unclaimed
+    // provider profile (account takeover). A per-provider claim token would be
+    // stronger; this reuses the existing onboarding invite gate for the pilot.
+    const accountProfile = await prisma.accountProfile.findUnique({
+      where: { authUserId: userId },
+      select: { inviteCodeVerified: true },
+    });
+
+    if (!accountProfile?.inviteCodeVerified) {
+      return NextResponse.json(
+        { error: "Complete onboarding before claiming a provider profile." },
+        { status: 403 }
+      );
+    }
+
     const body = (await request.json()) as ClaimLegacyProviderBody;
     const providerId = body.providerId?.trim() ?? "";
 

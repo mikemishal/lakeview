@@ -13,8 +13,27 @@ Set the following variables in your deployment platform:
 - NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL
 - SIGNUP_INVITE_CODE
 
-For the current test environment, set SIGNUP_INVITE_CODE to GCMIKE.
-In Azure App Service, configure SIGNUP_INVITE_CODE under Application Settings.
+Optional:
+
+- LAKEVIEW_CALENDAR_HOST_ALLOWLIST - comma separated extra calendar host domains
+  allowed for fetching (Airbnb is always allowed). Example:
+  `vrbo.com,calendar.google.com`.
+
+In Azure App Service, configure these under Application Settings. Set
+SIGNUP_INVITE_CODE to your chosen invite code (do not commit it to the repo).
+
+## Secrets
+
+Never commit deployment secrets. The Azure publish profile is consumed in CI via
+the `AZURE_WEBAPP_PUBLISH_PROFILE` GitHub Actions secret, not a file in the repo.
+If a publish profile or password is ever committed, rotate it in the Azure portal
+(App Service, Deployment Center, Manage publish profile) and remove it from git
+history.
+
+## Database Migrations
+
+Migrations run automatically in CI during deploy (`prisma migrate deploy` in the
+GitHub Actions workflow). For a manual or first-time setup:
 
 ## Database Setup
 

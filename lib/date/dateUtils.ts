@@ -1,7 +1,11 @@
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
+// Date helpers. Calendar dates are stored at UTC midnight, so all formatting and
+// arithmetic is done in UTC to avoid off-by-one-day shifts for users in negative
+// timezone offsets.
+const dateFormatter = new Intl.DateTimeFormat("en-GB", {
   year: "numeric",
   month: "short",
   day: "numeric",
+  timeZone: "UTC",
 });
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -36,5 +40,6 @@ export function formatDate(isoDate: string): string {
     return "Invalid date";
   }
 
+  // Formatted in UTC so a date-only value renders the same day everywhere.
   return dateFormatter.format(date);
 }

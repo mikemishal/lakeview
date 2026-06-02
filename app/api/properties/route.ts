@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AuthAccessError, requireOwnerProfile } from "@/lib/auth-access";
+import { normalizeCalendarUrl } from "@/lib/calendar/validateCalendarUrl";
 
 type CreatePropertyBody = {
   name?: string;
@@ -77,7 +78,7 @@ export async function GET() {
 
     const properties = await prisma.property.findMany({
       where: {
-        OR: [{ ownerProfileId: ownerProfile.id }, { ownerProfileId: null }],
+        ownerProfileId: ownerProfile.id,
       },
       orderBy: {
         createdAt: "desc",
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
 
     const name = body.name?.trim() ?? "";
     const address = toNullableTrimmed(body.address);
-    const airbnbCalendarUrl = body.airbnbCalendarUrl?.trim() ?? "";
+    const airbnbCalendarUrlRaw = body.airbnbCalendarUrl?.trim() ?? "";
     const bedrooms = parseNullableFloat(body.bedrooms);
     const bathrooms = parseNullableFloat(body.bathrooms);
     const squareFeet = parseNullableInt(body.squareFeet);
@@ -111,11 +112,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Property name is required." }, { status: 400 });
     }
 
-    if (!airbnbCalendarUrl) {
+    if (!airbnbCalendarUrlRaw) {
       return NextResponse.json(
         { error: "Airbnb calendar URL is required." },
         { status: 400 }
       );
+    }
+
+    // Validate and normalize the calendar URL up front so unsafe or malformed
+    // URLs are never stored (the sync route also validates before fetching).
+    let airbnbCalendarUrl: string;
+    try {
+      airbnbCalendarUrl = normalizeCalendarUrl(airbnbCalendarUrlRaw);
+    } catch (urlError) {
+      const message =
+        urlError instanceof Error ? urlError.message : "Invalid calendar URL.";
+      return NextResponse.json({ error: message }, { status: 400 });
     }
 
     if (
