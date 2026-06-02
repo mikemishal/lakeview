@@ -1,0 +1,21 @@
+name: Scheduled calendar sync
+
+# Triggers the in-app sync endpoint, which re-syncs every property's calendar and
+# regenerates cleaning jobs. GitHub scheduled runs can be delayed by several
+# minutes and are best-effort; for tighter timing use an Azure WebJob or a cron
+# service that calls the same endpoint.
+
+on:
+  schedule:
+    - cron: "0 */3 * * *" # every 3 hours, on the hour (UTC)
+  workflow_dispatch:
+
+jobs:
+  trigger-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call sync endpoint
+        run: |
+          curl -fsS -X POST \
+            "https://lakeview-prod.azurewebsites.net/api/cron/sync" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
