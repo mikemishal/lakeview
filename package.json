@@ -10,6 +10,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "db:clear-operational": "tsx scripts/clear-operational-data.ts",
+    "db:backfill-owner-ids": "tsx scripts/backfill-owner-ids.ts",
+    "db:seed:demo": "tsx prisma/seed-demo.ts",
+    "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug"

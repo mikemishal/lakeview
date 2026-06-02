@@ -22,6 +22,7 @@ export async function GET(request: Request) {
       audienceType: "owner" | "provider";
       ownerProfileId?: string;
       providerId?: string;
+      ownerProfileId?: string;
       readAt?: null;
     } = {
       audienceType,
@@ -30,13 +31,7 @@ export async function GET(request: Request) {
     if (audienceType === "owner") {
       const ownerProfile = await requireOwnerProfile();
 
-      if (ownerId && ownerId !== ownerProfile.id) {
-        return NextResponse.json(
-          { error: "You do not have access to this resource." },
-          { status: 403 }
-        );
-      }
-
+      // Owner notifications are scoped to the signed-in owner only.
       where.ownerProfileId = ownerProfile.id;
     }
 

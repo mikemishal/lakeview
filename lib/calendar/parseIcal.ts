@@ -6,6 +6,13 @@ function isValidDate(value: unknown): value is Date {
   return value instanceof Date && !Number.isNaN(value.getTime());
 }
 
+// Airbnb iCal feeds include owner blocks and maintenance holds alongside real
+// reservations. Those show up with summaries like "Airbnb (Not available)" or
+// "Blocked". We exclude them so they do not turn into cleaning jobs.
+function isBlockedSummary(summary: string): boolean {
+  return /\bnot available\b|\bunavailable\b|\bblocked\b/i.test(summary);
+}
+
 export async function parseIcalEvents(
   icsText: string
 ): Promise<CalendarEventItem[]> {
@@ -26,10 +33,12 @@ export async function parseIcalEvents(
 
       const checkInDate = toDateOnly(start);
       const checkOutDate = toDateOnly(end);
+      // Default unknown summaries to "Reserved" (not "Blocked") so a missing
+      // summary is kept as a reservation rather than filtered out below.
       const summary =
         typeof event.summary === "string" && event.summary.trim()
           ? event.summary.trim()
-          : "Reserved / Blocked";
+          : "Reserved";
       const id =
         typeof event.uid === "string" && event.uid.trim()
           ? event.uid.trim()
@@ -45,6 +54,7 @@ export async function parseIcalEvents(
       } as CalendarEventItem;
     })
     .filter((item): item is CalendarEventItem => item !== null)
+    .filter((item) => !isBlockedSummary(item.summary))
     .filter((item) => item.checkOutDate >= todayDateOnly)
     .sort((a, b) => a.checkInDate.localeCompare(b.checkInDate));
 

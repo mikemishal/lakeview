@@ -10,12 +10,29 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
+    // Only invite-verified accounts can see the list of claimable provider
+    // profiles. This avoids exposing provider records to any signed-in user.
+    const accountProfile = await prisma.accountProfile.findUnique({
+      where: { authUserId: userId },
+      select: { inviteCodeVerified: true },
+    });
+
+    if (!accountProfile?.inviteCodeVerified) {
+      return NextResponse.json({ serviceProviders: [] });
+    }
+
+    // Return only the fields the claim UI needs, not contact details.
     const serviceProviders = await prisma.serviceProvider.findMany({
       where: {
         active: true,
         authUserId: null,
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        companyName: true,
+        serviceType: true,
+        primaryServiceType: true,
         capabilities: true,
       },
       orderBy: {

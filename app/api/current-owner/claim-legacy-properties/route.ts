@@ -2,32 +2,22 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
+// Bulk self-claim of every unowned property was a cross-tenant data risk: any
+// owner could attach all orphaned properties to their own account. Legacy data
+// migration is now handled server-side by scripts/backfill-owner-ids.ts.
+//
+// This endpoint is kept so the existing client call does not error, but it no
+// longer reassigns any properties.
 export async function PATCH() {
-  try {
-    const { userId } = await auth();
+  const { userId } = await auth();
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-    }
-
-    const ownerProfile = await prisma.ownerProfile.findUnique({
-      where: { authUserId: userId },
-    });
-
-    if (!ownerProfile) {
-      return NextResponse.json({ error: "Owner profile is required." }, { status: 400 });
-    }
-
-    const result = await prisma.property.updateMany({
-      where: { ownerProfileId: null },
-      data: { ownerProfileId: ownerProfile.id },
-    });
-
-    return NextResponse.json({ updatedCount: result.count });
-  } catch {
-    return NextResponse.json(
-      { error: "Failed to claim legacy properties." },
-      { status: 500 }
-    );
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
+
+  return NextResponse.json({
+    updatedCount: 0,
+    message:
+      "Legacy property claiming is disabled. Ask an administrator to run the backfill.",
+  });
 }

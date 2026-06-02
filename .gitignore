@@ -14,8 +14,9 @@ node_modules
 /.clerk/
 .env.example
 
-# Azure publish profiles / deployment secrets
+# deployment secrets (never commit these)
 publish-profile.xml
+*.publishsettings
 *.PublishSettings
-*.pubxml
-*.pubxml.user
+deploy/
+*.zip

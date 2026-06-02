@@ -13,13 +13,17 @@ export type CreateNotificationInput = {
 
 export async function createNotification(input: CreateNotificationInput): Promise<void> {
   try {
-    // Always require explicit recipient scope before writing a notification.
-    if (input.audienceType === "owner" && !input.ownerProfileId) {
-      return;
-    }
+    // Owner notifications must be scoped to a specific owner. If the caller did
+    // not pass ownerProfileId, derive it from the related property so each owner
+    // only ever sees their own notifications.
+    let ownerProfileId = input.ownerProfileId ?? null;
 
-    if (input.audienceType === "provider" && !input.providerId) {
-      return;
+    if (input.audienceType === "owner" && !ownerProfileId && input.propertyId) {
+      const property = await prisma.property.findUnique({
+        where: { id: input.propertyId },
+        select: { ownerProfileId: true },
+      });
+      ownerProfileId = property?.ownerProfileId ?? null;
     }
 
     await prisma.notification.create({
@@ -28,7 +32,7 @@ export async function createNotification(input: CreateNotificationInput): Promis
         type: input.type,
         title: input.title,
         message: input.message,
-        ownerProfileId: input.ownerProfileId ?? null,
+        ownerProfileId,
         providerId: input.providerId ?? null,
         propertyId: input.propertyId ?? null,
         cleaningJobId: input.cleaningJobId ?? null,
