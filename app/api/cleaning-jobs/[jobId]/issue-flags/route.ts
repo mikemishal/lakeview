@@ -123,6 +123,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (newlyFlaggedLabels.length > 0) {
       await createNotification({
         audienceType: "owner",
+        ownerProfileId: cleaningJob.property.ownerProfileId,
         propertyId: cleaningJob.propertyId,
         cleaningJobId: cleaningJob.id,
         type: "job_issue_flagged",

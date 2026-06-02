@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const audienceType = (searchParams.get("audienceType") ?? "").trim();
     const providerId = (searchParams.get("providerId") ?? "").trim();
+    const ownerId = (searchParams.get("ownerId") ?? "").trim();
     const unreadOnly = searchParams.get("unreadOnly") === "true";
 
     if (audienceType !== "owner" && audienceType !== "provider") {
@@ -19,8 +20,8 @@ export async function GET(request: Request) {
 
     const where: {
       audienceType: "owner" | "provider";
+      ownerProfileId?: string;
       providerId?: string;
-      OR?: { ownerProfileId: string | null }[];
       readAt?: null;
     } = {
       audienceType,
@@ -29,8 +30,14 @@ export async function GET(request: Request) {
     if (audienceType === "owner") {
       const ownerProfile = await requireOwnerProfile();
 
-      // TODO: later write ownerProfileId when creating owner notifications.
-      where.OR = [{ ownerProfileId: ownerProfile.id }, { ownerProfileId: null }];
+      if (ownerId && ownerId !== ownerProfile.id) {
+        return NextResponse.json(
+          { error: "You do not have access to this resource." },
+          { status: 403 }
+        );
+      }
+
+      where.ownerProfileId = ownerProfile.id;
     }
 
     if (audienceType === "provider") {

@@ -79,6 +79,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (normalizedNotes !== existingJob.notes) {
       await createNotification({
         audienceType: "owner",
+        ownerProfileId: cleaningJob.property.ownerProfileId,
         propertyId: cleaningJob.propertyId,
         cleaningJobId: cleaningJob.id,
         type: "job_notes_updated",

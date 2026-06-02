@@ -12,12 +12,25 @@ type OnboardingProfileBody = {
   name?: string;
   companyName?: string | null;
   phone?: string | null;
+  propertyCountry?: string | null;
+  propertyState?: string | null;
+  propertyCity?: string | null;
+  propertyNeighborhood?: string | null;
+  propertyStreetAddress?: string | null;
+  propertyUnit?: string | null;
+  propertyPostalCode?: string | null;
+  propertyLatitude?: number | string | null;
+  propertyLongitude?: number | string | null;
   capabilities?: string[];
   primaryServiceType?: string;
   baseAddress?: string | null;
+  serviceCountry?: string | null;
   baseCity?: string | null;
   baseState?: string | null;
+  serviceNeighborhood?: string | null;
   baseZipCode?: string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   serviceRadiusMiles?: number | string | null;
   serviceAreaNotes?: string | null;
   baseRateCents?: number | string | null;
@@ -82,6 +95,26 @@ function parseNullableInt(value: number | string | null | undefined): number | n
 
   const parsed = Number(trimmed);
   return Number.isInteger(parsed) ? parsed : "invalid";
+}
+
+function parseNullableFloat(
+  value: number | string | null | undefined
+): number | null | "invalid" {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : "invalid";
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : "invalid";
 }
 
 export async function GET() {
@@ -202,6 +235,21 @@ export async function POST(request: Request) {
     });
 
     if (shouldCreateOwner) {
+      const propertyLatitude = parseNullableFloat(body.propertyLatitude);
+      const propertyLongitude = parseNullableFloat(body.propertyLongitude);
+
+      if (propertyLatitude === "invalid" || propertyLongitude === "invalid") {
+        return NextResponse.json({ error: "Invalid owner location coordinates." }, { status: 400 });
+      }
+
+      const propertyCountry = toNullableTrimmed(body.propertyCountry);
+      const propertyState = toNullableTrimmed(body.propertyState);
+      const propertyCity = toNullableTrimmed(body.propertyCity);
+      const propertyNeighborhood = toNullableTrimmed(body.propertyNeighborhood);
+      const propertyStreetAddress = toNullableTrimmed(body.propertyStreetAddress);
+      const propertyUnit = toNullableTrimmed(body.propertyUnit);
+      const propertyPostalCode = toNullableTrimmed(body.propertyPostalCode);
+
       ownerProfile = ownerProfile
         ? await prisma.ownerProfile.update({
             where: { id: ownerProfile.id },
@@ -210,6 +258,15 @@ export async function POST(request: Request) {
               email: accountProfile.email,
               companyName: accountProfile.companyName,
               phone: accountProfile.phone,
+              propertyCountry,
+              propertyState,
+              propertyCity,
+              propertyNeighborhood,
+              propertyStreetAddress,
+              propertyUnit,
+              propertyPostalCode,
+              propertyLatitude,
+              propertyLongitude,
               onboardingComplete: true,
               active: true,
             },
@@ -221,6 +278,15 @@ export async function POST(request: Request) {
               email: accountProfile.email,
               companyName: accountProfile.companyName,
               phone: accountProfile.phone,
+              propertyCountry,
+              propertyState,
+              propertyCity,
+              propertyNeighborhood,
+              propertyStreetAddress,
+              propertyUnit,
+              propertyPostalCode,
+              propertyLatitude,
+              propertyLongitude,
               onboardingComplete: true,
               active: true,
             },
@@ -260,18 +326,24 @@ export async function POST(request: Request) {
       const parsedServiceRadiusMiles = parseNullableInt(body.serviceRadiusMiles);
       const parsedBaseRateCents = parseNullableInt(body.baseRateCents);
       const parsedHourlyRateCents = parseNullableInt(body.hourlyRateCents);
+      const parsedLatitude = parseNullableFloat(body.latitude);
+      const parsedLongitude = parseNullableFloat(body.longitude);
 
       if (
         parsedServiceRadiusMiles === "invalid" ||
         parsedBaseRateCents === "invalid" ||
-        parsedHourlyRateCents === "invalid"
+        parsedHourlyRateCents === "invalid" ||
+        parsedLatitude === "invalid" ||
+        parsedLongitude === "invalid"
       ) {
         return NextResponse.json({ error: "Invalid numeric field value." }, { status: 400 });
       }
 
       const baseAddress = toNullableTrimmed(body.baseAddress);
+      const serviceCountry = toNullableTrimmed(body.serviceCountry);
       const baseCity = toNullableTrimmed(body.baseCity);
       const baseState = toNullableTrimmed(body.baseState);
+      const serviceNeighborhood = toNullableTrimmed(body.serviceNeighborhood);
       const baseZipCode = toNullableTrimmed(body.baseZipCode);
       const serviceAreaNotes = toNullableTrimmed(body.serviceAreaNotes);
 
@@ -288,11 +360,15 @@ export async function POST(request: Request) {
               onboardingComplete: true,
               active: true,
               baseAddress,
+              serviceCountry,
               baseCity,
               baseState,
+              serviceNeighborhood,
               baseZipCode,
               serviceRadiusMiles: parsedServiceRadiusMiles,
               serviceAreaNotes,
+              latitude: parsedLatitude,
+              longitude: parsedLongitude,
               baseRateCents: parsedBaseRateCents,
               hourlyRateCents: parsedHourlyRateCents,
               capabilities: {
@@ -317,11 +393,15 @@ export async function POST(request: Request) {
               onboardingComplete: true,
               active: true,
               baseAddress,
+              serviceCountry,
               baseCity,
               baseState,
+              serviceNeighborhood,
               baseZipCode,
               serviceRadiusMiles: parsedServiceRadiusMiles,
               serviceAreaNotes,
+              latitude: parsedLatitude,
+              longitude: parsedLongitude,
               baseRateCents: parsedBaseRateCents,
               hourlyRateCents: parsedHourlyRateCents,
               capabilities: {
