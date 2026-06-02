@@ -74,6 +74,15 @@ model OwnerProfile {
   companyName        String?
   email              String?
   phone              String?
+  propertyCountry    String?
+  propertyState      String?
+  propertyCity       String?
+  propertyNeighborhood String?
+  propertyStreetAddress String?
+  propertyUnit       String?
+  propertyPostalCode String?
+  propertyLatitude   Float?
+  propertyLongitude  Float?
 
   onboardingComplete Boolean  @default(false)
   active             Boolean  @default(true)
@@ -165,8 +174,10 @@ model ServiceProvider {
   onboardingComplete Boolean              @default(false)
   active             Boolean              @default(true)
   baseAddress        String?
+  serviceCountry     String?
   baseCity           String?
   baseState          String?
+  serviceNeighborhood String?
   baseZipCode        String?
   serviceRadiusMiles Int?
   serviceAreaNotes   String?

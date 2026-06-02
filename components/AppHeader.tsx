@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
+import RoleSwitcher from "@/components/RoleSwitcher";
 
 type AppHeaderProps = {
   currentSection?: "owner" | "provider" | "onboarding";
@@ -53,6 +54,13 @@ export default function AppHeader({
             </span>
           ) : null}
         </div>
+
+        <RoleSwitcher
+          currentSection={currentSection}
+          showOwner={showOwnerLink}
+          showProvider={showProviderLink}
+          showOnboarding={!showOwnerLink && !showProviderLink && showProfilesLink}
+        />
 
         <nav className="hidden max-w-full flex-wrap items-center justify-end gap-2 md:flex">
           {showOwnerLink ? (

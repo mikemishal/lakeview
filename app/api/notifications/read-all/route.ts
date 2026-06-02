@@ -9,6 +9,7 @@ import {
 type MarkReadAllBody = {
   audienceType?: "owner" | "provider" | string;
   providerId?: string;
+  ownerId?: string;
 };
 
 export async function PATCH(request: Request) {
@@ -16,6 +17,7 @@ export async function PATCH(request: Request) {
     const body = (await request.json()) as MarkReadAllBody;
     const audienceType = (body.audienceType ?? "").trim();
     const providerId = (body.providerId ?? "").trim();
+    const ownerId = (body.ownerId ?? "").trim();
 
     if (audienceType !== "owner" && audienceType !== "provider") {
       return NextResponse.json({ error: "Invalid audience type." }, { status: 400 });
@@ -23,8 +25,8 @@ export async function PATCH(request: Request) {
 
     const where: {
       audienceType: "owner" | "provider";
+      ownerProfileId?: string;
       providerId?: string;
-      OR?: { ownerProfileId: string | null }[];
       readAt: null;
     } = {
       audienceType,
@@ -34,8 +36,14 @@ export async function PATCH(request: Request) {
     if (audienceType === "owner") {
       const ownerProfile = await requireOwnerProfile();
 
-      // TODO: later write ownerProfileId when creating owner notifications.
-      where.OR = [{ ownerProfileId: ownerProfile.id }, { ownerProfileId: null }];
+      if (ownerId && ownerId !== ownerProfile.id) {
+        return NextResponse.json(
+          { error: "You do not have access to this resource." },
+          { status: 403 }
+        );
+      }
+
+      where.ownerProfileId = ownerProfile.id;
     }
 
     if (audienceType === "provider") {

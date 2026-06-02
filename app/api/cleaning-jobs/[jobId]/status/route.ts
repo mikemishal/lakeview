@@ -196,6 +196,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (status === "accepted" && shouldNotifyOwner) {
       await createNotification({
         audienceType: "owner",
+        ownerProfileId: cleaningJob.property.ownerProfileId,
         propertyId: cleaningJob.propertyId,
         cleaningJobId: cleaningJob.id,
         type: "job_accepted",
@@ -207,6 +208,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (status === "declined") {
       await createNotification({
         audienceType: "owner",
+        ownerProfileId: cleaningJob.property.ownerProfileId,
         propertyId: cleaningJob.propertyId,
         cleaningJobId: cleaningJob.id,
         type: "job_declined",
@@ -218,6 +220,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (status === "in_progress" && shouldNotifyOwner) {
       await createNotification({
         audienceType: "owner",
+        ownerProfileId: cleaningJob.property.ownerProfileId,
         propertyId: cleaningJob.propertyId,
         cleaningJobId: cleaningJob.id,
         type: "job_started",
@@ -229,6 +232,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (status === "completed" && shouldNotifyOwner) {
       await createNotification({
         audienceType: "owner",
+        ownerProfileId: cleaningJob.property.ownerProfileId,
         propertyId: cleaningJob.propertyId,
         cleaningJobId: cleaningJob.id,
         type: "job_completed",
