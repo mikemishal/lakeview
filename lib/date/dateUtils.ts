@@ -10,6 +10,17 @@ const dateFormatter = new Intl.DateTimeFormat("en-GB", {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+// Returns the viewer's IANA timezone (for example "Europe/Madrid"), falling
+// back to UTC. Used to format real activity timestamps in the user's local time
+// instead of a single hardcoded zone.
+export function getBrowserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
 export function toDateOnly(date: Date): string {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");

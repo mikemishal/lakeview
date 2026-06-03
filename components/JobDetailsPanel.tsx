@@ -1,4 +1,5 @@
 import { type CleanerScheduleJob } from "@/components/CleanerSchedule";
+import { getBrowserTimeZone } from "@/lib/date/dateUtils";
 
 type JobDetailsPanelProps = {
   job: CleanerScheduleJob;
@@ -31,7 +32,7 @@ function formatDateTimeLabel(value: string): string {
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
-    timeZone: "America/Chicago",
+    timeZone: getBrowserTimeZone(),
   }).format(parsed);
 }
 

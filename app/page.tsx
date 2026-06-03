@@ -91,6 +91,13 @@ export default function Home() {
                   Sign up
                 </button>
               </SignUpButton>
+
+              <Link
+                href="/demo"
+                className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                See a live demo
+              </Link>
             </div>
           </section>
 

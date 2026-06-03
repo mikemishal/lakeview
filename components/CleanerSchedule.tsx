@@ -1,5 +1,6 @@
 import { useState } from "react";
 import JobDetailsPanel from "@/components/JobDetailsPanel";
+import { getBrowserTimeZone } from "@/lib/date/dateUtils";
 
 type CleanerScheduleProperty = {
   id: string;
@@ -105,7 +106,7 @@ const activityDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
   hour: "numeric",
   minute: "2-digit",
-  timeZone: "America/Chicago",
+  timeZone: getBrowserTimeZone(),
 });
 
 function formatStatusLabel(status: string): string {

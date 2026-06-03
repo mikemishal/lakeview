@@ -282,8 +282,7 @@ export default function PropertyForm({
             </label>
             <input
               id="defaultCheckInTime"
-              type="text"
-              placeholder="Optional"
+              type="time"
               value={defaultCheckInTime}
               onChange={(event) => setDefaultCheckInTime(event.target.value)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
@@ -296,8 +295,7 @@ export default function PropertyForm({
             </label>
             <input
               id="defaultCheckOutTime"
-              type="text"
-              placeholder="Optional"
+              type="time"
               value={defaultCheckOutTime}
               onChange={(event) => setDefaultCheckOutTime(event.target.value)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"

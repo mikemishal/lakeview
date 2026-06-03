@@ -2183,7 +2183,7 @@ export default function HomePage() {
     />
     <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 pb-24 sm:px-6 lg:px-8">
       <header className="mb-8 space-y-2">
-        <p className="text-sm font-medium uppercase tracking-wide text-slate-500">Project Lakeview</p>
+        <p className="text-sm font-medium uppercase tracking-wide text-blue-700">Owner workspace</p>
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Owner Dashboard</h1>
         <p className="text-sm text-slate-600">
           Lakeview operations dashboard for properties, calendars, cleaning jobs, and provider workflows.

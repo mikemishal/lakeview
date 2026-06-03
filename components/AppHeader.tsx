@@ -38,8 +38,16 @@ export default function AppHeader({
       ? "Provider"
       : null;
 
+  // Color-code the bar by role: owner reads blue, provider reads green.
+  const sectionAccent =
+    currentSection === "owner"
+      ? { border: "border-blue-500", chip: "border-blue-300 bg-blue-50 text-blue-700" }
+      : currentSection === "provider"
+      ? { border: "border-emerald-500", chip: "border-emerald-300 bg-emerald-50 text-emerald-700" }
+      : { border: "border-slate-200", chip: "border-slate-300 bg-slate-100 text-slate-700" };
+
   return (
-    <header className="border-b border-slate-200 bg-white/95">
+    <header className={`border-b-2 ${sectionAccent.border} bg-white/95`}>
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-2">
           <Link
@@ -49,7 +57,7 @@ export default function AppHeader({
             Lakeview
           </Link>
           {roleLabel ? (
-            <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+            <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${sectionAccent.chip}`}>
               {roleLabel}
             </span>
           ) : null}
