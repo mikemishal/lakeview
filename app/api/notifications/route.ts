@@ -5,6 +5,7 @@ import {
   requireOwnerProfile,
   requireProviderProfile,
 } from "@/lib/auth-access";
+import { log } from "@/lib/logger";
 
 export async function GET(request: Request) {
   try {
@@ -22,7 +23,6 @@ export async function GET(request: Request) {
       audienceType: "owner" | "provider";
       ownerProfileId?: string;
       providerId?: string;
-      ownerProfileId?: string;
       readAt?: null;
     } = {
       audienceType,
@@ -75,6 +75,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
+    log.error("notifications.list failed", {
+      route: "GET /api/notifications",
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "Failed to load notifications." }, { status: 500 });
   }
 }

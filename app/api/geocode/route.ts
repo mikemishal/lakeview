@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { log } from "@/lib/logger";
 
 type NominatimSearchResult = {
   display_name: string;
@@ -103,7 +104,11 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ error: "Provide either q or lat/lng." }, { status: 400 });
-  } catch {
+  } catch (error) {
+    log.error("geocode failed", {
+      route: "GET /api/geocode",
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "Failed to geocode location." }, { status: 500 });
   }
 }

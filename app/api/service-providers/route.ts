@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { log } from "@/lib/logger";
 
 type ServiceProviderBody = {
   name?: string;
@@ -105,7 +106,11 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({ serviceProviders });
-  } catch {
+  } catch (error) {
+    log.error("serviceProviders.list failed", {
+      route: "GET /api/service-providers",
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Failed to load service providers." },
       { status: 500 }
@@ -213,7 +218,11 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ serviceProvider });
-  } catch {
+  } catch (error) {
+    log.error("serviceProviders.create failed", {
+      route: "POST /api/service-providers",
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Failed to create service provider." },
       { status: 500 }
