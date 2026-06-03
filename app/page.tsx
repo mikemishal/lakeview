@@ -13,14 +13,19 @@ export default function Home() {
         <header className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">
-              Project Lakeview
+              Lakeview
             </p>
-            <h1 className="mt-3 text-4xl font-bold tracking-tight">
-              Short-term rental operations dashboard
+            <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
+              Never miss a turnover.
             </h1>
             <p className="mt-4 max-w-2xl text-base text-slate-300">
-              Manage Airbnb calendar sync, cleaning jobs, provider workflows,
-              notifications, and owner/provider operations.
+              Connect your Airbnb calendar and every checkout becomes a cleaning
+              job your cleaner can accept and complete from their phone. You see
+              the status without sending a single text.
+            </p>
+            <p className="mt-2 max-w-2xl text-sm text-slate-400">
+              Built for owners with 1 to 10 listings who want turnover scheduling
+              without a full property-management suite.
             </p>
           </div>
 
@@ -47,6 +52,27 @@ export default function Home() {
         </section>
 
         <Show when="signed-out">
+          <section className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-2xl border border-slate-700 bg-slate-900 p-5">
+              <p className="text-sm font-semibold text-sky-300">1. Connect</p>
+              <p className="mt-2 text-sm text-slate-300">
+                Paste your Airbnb iCal link. Reservations sync automatically.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-700 bg-slate-900 p-5">
+              <p className="text-sm font-semibold text-sky-300">2. Jobs appear</p>
+              <p className="mt-2 text-sm text-slate-300">
+                Each checkout becomes a dated cleaning job. Same-day turnovers are flagged.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-700 bg-slate-900 p-5">
+              <p className="text-sm font-semibold text-sky-300">3. Done</p>
+              <p className="mt-2 text-sm text-slate-300">
+                Your cleaner accepts, completes, and flags any damage or restock. You get notified.
+              </p>
+            </div>
+          </section>
+
           <section className="rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-lg">
             <h2 className="text-2xl font-semibold">Get started</h2>
             <p className="mt-2 text-sm text-slate-300">
@@ -65,6 +91,13 @@ export default function Home() {
                   Sign up
                 </button>
               </SignUpButton>
+
+              <Link
+                href="/demo"
+                className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                See a live demo
+              </Link>
             </div>
           </section>
 

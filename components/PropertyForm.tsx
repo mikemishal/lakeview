@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent } from "react";
+import { FormEvent, useState } from "react";
 
 type PropertyFormProps = {
   propertyName: string;
@@ -114,6 +114,10 @@ export default function PropertyForm({
   const resolvedTitle = mode === "edit" ? "Edit Property" : "Add Property";
   const resolvedSubmitLabel = submitLabel ?? (mode === "edit" ? "Save changes" : "Save property");
   const resolvedLoadingLabel = loadingLabel ?? "Saving...";
+
+  // Show only the required basics by default; reveal the rest on demand. When
+  // editing an existing property the extra sections start expanded.
+  const [showAdvanced, setShowAdvanced] = useState(mode === "edit");
 
   return (
     <form
@@ -259,6 +263,16 @@ export default function PropertyForm({
         </div>
       </section>
 
+      <button
+        type="button"
+        onClick={() => setShowAdvanced((value) => !value)}
+        className="text-sm font-medium text-sky-700 underline"
+      >
+        {showAdvanced ? "Hide extra details" : "Add details (optional)"}
+      </button>
+
+      {showAdvanced && (
+        <>
       <section className="space-y-3">
         <h3 className="text-sm font-semibold text-slate-900">Turnover timing</h3>
         <div className="grid gap-3 md:grid-cols-2">
@@ -268,8 +282,7 @@ export default function PropertyForm({
             </label>
             <input
               id="defaultCheckInTime"
-              type="text"
-              placeholder="Optional"
+              type="time"
               value={defaultCheckInTime}
               onChange={(event) => setDefaultCheckInTime(event.target.value)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
@@ -282,8 +295,7 @@ export default function PropertyForm({
             </label>
             <input
               id="defaultCheckOutTime"
-              type="text"
-              placeholder="Optional"
+              type="time"
               value={defaultCheckOutTime}
               onChange={(event) => setDefaultCheckOutTime(event.target.value)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
@@ -427,6 +439,8 @@ export default function PropertyForm({
           />
         </div>
       </section>
+        </>
+      )}
 
       <button
         type="submit"

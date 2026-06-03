@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import EmptyState from "@/components/EmptyState";
+import { getBrowserTimeZone } from "@/lib/date/dateUtils";
 
 export type AppNotification = {
   id: string;
@@ -26,7 +27,7 @@ type NotificationPanelProps = {
 };
 
 const notificationDateFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/Chicago",
+  timeZone: getBrowserTimeZone(),
   month: "short",
   day: "numeric",
   year: "numeric",

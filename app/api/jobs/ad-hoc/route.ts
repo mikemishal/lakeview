@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications";
+import { log } from "@/lib/logger";
 
 type AdHocJobBody = {
   propertyId?: string;
@@ -191,7 +192,11 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ cleaningJob });
-  } catch {
+  } catch (error) {
+    log.error("jobs.adHoc.create failed", {
+      route: "POST /api/jobs/ad-hoc",
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ error: "Failed to create ad hoc job." }, { status: 500 });
   }
 }

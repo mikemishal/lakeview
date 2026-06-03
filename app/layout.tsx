@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import PwaRegistration from "@/components/PwaRegistration";
+import { ToastProvider } from "@/components/Toast";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
@@ -32,7 +33,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ClerkProvider>{children}</ClerkProvider>
+        <ClerkProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </ClerkProvider>
         <PwaRegistration />
       </body>
     </html>

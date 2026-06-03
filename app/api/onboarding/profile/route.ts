@@ -420,7 +420,8 @@ export async function POST(request: Request) {
       ownerProfile,
       serviceProvider,
     });
-  } catch {
+  } catch (error) {
+    console.error("POST /api/onboarding/profile failed:", error);
     return NextResponse.json({ error: "Failed to save onboarding profile." }, { status: 500 });
   }
 }
