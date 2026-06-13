@@ -3,8 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --background: #f9fafb;
-  --foreground: #111827;
+  --lv-page-bg: #faf7f2;
+  --lv-card-bg: #ffffff;
+  --lv-primary-navy: #0d1b2a;
+  --lv-gold: #b8860b;
+  --lv-teal: #1a6b60;
+  --lv-amber: #d97706;
+  --lv-border: #e5e0d8;
+  --lv-text-primary: #1a1208;
+  --lv-text-secondary: #7a7060;
 }
 
 html,
@@ -13,6 +20,143 @@ body {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--lv-page-bg);
+  color: var(--lv-text-primary);
+  font-family: Georgia, Palatino, serif;
+}
+
+@layer components {
+  .lv-page-container {
+    @apply mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8;
+  }
+
+  .lv-card {
+    background: var(--lv-card-bg);
+    border: 1px solid var(--lv-border);
+    @apply rounded-xl p-5 shadow-sm;
+  }
+
+  .lv-stat-card {
+    background: var(--lv-card-bg);
+    border: 1px solid var(--lv-border);
+    border-left-width: 4px;
+    border-left-color: var(--lv-teal);
+    @apply rounded-xl p-5 shadow-sm;
+  }
+
+  .lv-stat-card-navy {
+    border-left-color: var(--lv-primary-navy);
+  }
+
+  .lv-stat-card-gold {
+    border-left-color: var(--lv-gold);
+  }
+
+  .lv-stat-card-teal {
+    border-left-color: var(--lv-teal);
+  }
+
+  .lv-stat-card-amber {
+    border-left-color: var(--lv-amber);
+  }
+
+  .lv-btn {
+    @apply inline-flex min-h-11 items-center justify-center rounded-md px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .lv-btn-primary {
+    background: var(--lv-primary-navy);
+    color: #ffffff;
+  }
+
+  .lv-btn-primary:hover {
+    filter: brightness(1.1);
+  }
+
+  .lv-btn-gold {
+    background: var(--lv-gold);
+    color: #ffffff;
+  }
+
+  .lv-btn-gold:hover {
+    filter: brightness(1.08);
+  }
+
+  .lv-btn-ghost {
+    background: transparent;
+    border: 1px solid var(--lv-border);
+    color: var(--lv-text-primary);
+  }
+
+  .lv-btn-ghost:hover {
+    background: color-mix(in srgb, var(--lv-page-bg) 70%, #ffffff 30%);
+  }
+
+  .lv-status-pill {
+    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-wide;
+    background: color-mix(in srgb, var(--lv-primary-navy) 12%, #ffffff 88%);
+    color: var(--lv-primary-navy);
+    border: 1px solid color-mix(in srgb, var(--lv-primary-navy) 18%, #ffffff 82%);
+  }
+
+  .lv-status-pill-teal {
+    background: color-mix(in srgb, var(--lv-teal) 12%, #ffffff 88%);
+    color: var(--lv-teal);
+    border-color: color-mix(in srgb, var(--lv-teal) 22%, #ffffff 78%);
+  }
+
+  .lv-status-pill-amber {
+    background: color-mix(in srgb, var(--lv-amber) 12%, #ffffff 88%);
+    color: var(--lv-amber);
+    border-color: color-mix(in srgb, var(--lv-amber) 22%, #ffffff 78%);
+  }
+
+  .lv-section-header {
+    @apply mb-4 flex flex-wrap items-center justify-between gap-3;
+  }
+
+  .lv-section-title {
+    color: var(--lv-text-primary);
+    @apply text-xl font-semibold leading-tight;
+  }
+
+  .lv-section-subtitle {
+    color: var(--lv-text-secondary);
+    @apply text-sm;
+  }
+
+  .lv-pill-group {
+    background: color-mix(in srgb, var(--lv-page-bg) 85%, #ffffff 15%);
+    border: 1px solid var(--lv-border);
+    @apply inline-flex flex-wrap gap-2 rounded-full p-1;
+  }
+
+  .lv-pill-toggle {
+    color: var(--lv-text-secondary);
+    border: 1px solid transparent;
+    @apply rounded-full px-3 py-1.5 text-sm font-medium transition;
+  }
+
+  .lv-pill-toggle:hover {
+    color: var(--lv-text-primary);
+  }
+
+  .lv-pill-toggle-active {
+    background: var(--lv-card-bg);
+    color: var(--lv-primary-navy);
+    border-color: color-mix(in srgb, var(--lv-primary-navy) 20%, #ffffff 80%);
+    box-shadow: 0 1px 2px rgba(13, 27, 42, 0.08);
+  }
+
+  .lv-empty-state {
+    background: color-mix(in srgb, var(--lv-card-bg) 90%, var(--lv-page-bg) 10%);
+    border: 1px dashed var(--lv-border);
+    color: var(--lv-text-secondary);
+    @apply rounded-xl p-6 text-center shadow-sm;
+  }
+
+  .lv-empty-state-title {
+    color: var(--lv-text-primary);
+    @apply text-base font-semibold;
+  }
 }

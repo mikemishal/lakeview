@@ -16,8 +16,8 @@ type AppHeaderProps = {
 
 function navClass(isActive: boolean): string {
   return isActive
-    ? "rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white"
-    : "rounded-md px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100";
+    ? "rounded-full bg-[#B8860B] px-3 py-1.5 text-sm font-semibold text-[#0D1B2A]"
+    : "rounded-full px-3 py-1.5 text-sm font-medium text-[#7A7060] transition hover:bg-[#FAF7F2] hover:text-[#0D1B2A]";
 }
 
 export default function AppHeader({
@@ -39,17 +39,17 @@ export default function AppHeader({
       : null;
 
   return (
-    <header className="border-b border-slate-200 bg-white/95">
+    <header className="border-b border-[#E5E0D8] bg-white/95">
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-2">
           <Link
             href="/"
-            className="truncate text-sm font-semibold uppercase tracking-[0.2em] text-slate-700"
+            className="truncate text-sm font-semibold uppercase tracking-[0.2em] text-[#0D1B2A]"
           >
             Lakeview
           </Link>
           {roleLabel ? (
-            <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+            <span className="rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-2.5 py-1 text-xs font-semibold text-[#7A7060]">
               {roleLabel}
             </span>
           ) : null}
@@ -64,18 +64,32 @@ export default function AppHeader({
 
         <nav className="hidden max-w-full flex-wrap items-center justify-end gap-2 md:flex">
           {showOwnerLink ? (
-            <Link href="/owner" className={navClass(currentSection === "owner")}>
-              Owner Dashboard
+            <Link href="/owner?tab=overview" className={navClass(currentSection === "owner")}>
+              Dashboard
             </Link>
           ) : null}
           {showProviderLink ? (
-            <Link href="/provider" className={navClass(currentSection === "provider")}>
-              Provider Dashboard
+            <Link href="/provider?tab=overview" className={navClass(currentSection === "provider")}>
+              Dashboard
+            </Link>
+          ) : null}
+          {showOwnerLink ? (
+            <Link href="/owner?tab=calendar" className={navClass(false)}>
+              Calendar
+            </Link>
+          ) : !showOwnerLink && showProviderLink ? (
+            <Link href="/provider?tab=calendar" className={navClass(false)}>
+              Calendar
             </Link>
           ) : null}
           {showPropertiesLink ? (
             <Link href="/owner?tab=properties" className={navClass(false)}>
               Properties
+            </Link>
+          ) : null}
+          {showOwnerLink ? (
+            <Link href="/owner?tab=properties" className={navClass(false)}>
+              Add Property
             </Link>
           ) : null}
           {showJobsLink ? (
@@ -84,6 +98,21 @@ export default function AppHeader({
               className={navClass(false)}
             >
               Jobs
+            </Link>
+          ) : null}
+          {showOwnerLink ? (
+            <Link href="/owner?tab=jobs" className={navClass(false)}>
+              Create Job
+            </Link>
+          ) : null}
+          {showOwnerLink ? (
+            <Link href="/owner?tab=providers" className={navClass(false)}>
+              My Team
+            </Link>
+          ) : null}
+          {showOwnerLink ? (
+            <Link href="/owner?tab=providers" className={navClass(false)}>
+              Add Provider
             </Link>
           ) : null}
           {showProfilesLink ? (
