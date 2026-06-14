@@ -213,6 +213,30 @@ function formatSourcePlatformLabel(sourcePlatform: string): string {
     .join(" ");
 }
 
+function getStatusLeftBorderColor(status: string): string {
+  if (["assigned", "accepted", "completed", "synced"].includes(status)) {
+    return "#1A6B60";
+  }
+
+  if (["needs_assignment", "pending_acceptance", "unassigned"].includes(status)) {
+    return "#D97706";
+  }
+
+  return "#EF4444";
+}
+
+function getStatusBadgeColor(status: string): { bg: string; text: string } {
+  if (["assigned", "accepted", "completed", "synced"].includes(status)) {
+    return { bg: "bg-[#E8F4F1]", text: "text-[#0F6A5F]" };
+  }
+
+  if (["needs_assignment", "pending_acceptance", "unassigned"].includes(status)) {
+    return { bg: "bg-[#FFF4E5]", text: "text-[#9A5B00]" };
+  }
+
+  return { bg: "bg-[#FDECEC]", text: "text-[#B42318]" };
+}
+
 function formatDateLabel(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
@@ -403,413 +427,191 @@ export default function CleaningJobCard({
   }
 
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h3 className="text-base font-semibold text-slate-900">{job.title}</h3>
-          <div className="flex flex-wrap gap-1.5">
-            <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-              {formatRequestedServiceType(job.requestedServiceType)}
-            </span>
-            <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-              {formatSourcePlatformLabel(job.sourcePlatform)}
-            </span>
-            {isManualJob ? (
-              <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                Manual job
-              </span>
-            ) : null}
-            {job.ownerSelfAssigned ? (
-              <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                Self-assigned by owner
-              </span>
-            ) : null}
-            {isHighPriority ? (
-              <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                {formatPriority(job.priority)} priority
-              </span>
-            ) : null}
-          </div>
-          {hasIssuesFlagged ? (
-            <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-              Issues flagged
-            </span>
-          ) : null}
-        </div>
-        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium uppercase tracking-wide text-slate-700">
-          {formatStatusLabel(job.status)}
-        </span>
-      </div>
-
-      <p className="text-sm text-slate-700">
-        <span className="font-medium text-slate-900">Scheduled:</span> {formatDateLabel(job.scheduledDate)}
-      </p>
-      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-slate-700">
-        <p>
-          <span className="font-medium text-slate-900">Service:</span> {formatRequestedServiceType(job.requestedServiceType)}
-        </p>
-        <p>
-          <span className="font-medium text-slate-900">Priority:</span> {formatPriority(job.priority)}
-        </p>
-        {job.dueTime ? (
-          <p>
-            <span className="font-medium text-slate-900">Due time:</span> {job.dueTime}
-          </p>
-        ) : null}
-        {job.estimatedDurationMinutes !== null ? (
-          <p>
-            <span className="font-medium text-slate-900">Duration:</span> {job.estimatedDurationMinutes} min
-          </p>
-        ) : null}
-      </div>
-      {job.ownerInstructions ? (
-        <p className="mt-1 text-xs font-medium text-slate-600">Owner instructions available</p>
-      ) : null}
-
-      <div className="mt-2 space-y-1">
-        <p className="text-sm text-slate-700">
-          <span className="font-medium text-slate-900">Assigned to:</span>{" "}
-          {job.assignedProvider ? job.assignedProvider.name : "Needs provider"}
-        </p>
-        {job.assignedProvider?.companyName ? (
-          <p className="text-sm text-slate-700">
-            <span className="font-medium text-slate-900">Company:</span>{" "}
-            {job.assignedProvider.companyName}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-        <button
-          type="button"
-          onClick={primaryAction.onClick}
-          disabled={primaryAction.disabled}
-          className="min-h-11 w-full rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-        >
-          {primaryAction.label}
-        </button>
-      </div>
-
-      <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <summary className="cursor-pointer text-sm font-medium text-slate-800">More</summary>
-
-        <div className="mt-3 space-y-3">
-      <div className="space-y-1">
-        <label
-          htmlFor={`cleaning-job-provider-${job.id}`}
-          className="block text-sm font-medium text-slate-700"
-        >
-          Assigned provider
-        </label>
-        <select
-          id={`cleaning-job-provider-${job.id}`}
-          value={job.assignedProviderId ?? ""}
-          onChange={(event) => {
-            if (onProviderChange) {
-              const selectedProviderId = event.target.value;
-              onProviderChange(job.id, selectedProviderId === "" ? null : selectedProviderId);
-            }
-          }}
-          disabled={providerUpdating}
-          className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <option value="">Needs provider</option>
-          {cleanerProviders.map((provider) => (
-            <option key={provider.id} value={provider.id}>
-              {provider.companyName
-                ? `${provider.name} (${provider.companyName})`
-                : provider.name}
-            </option>
-          ))}
-        </select>
-        {providerUpdating ? (
-          <p className="text-xs text-slate-500">Updating assignment...</p>
-        ) : null}
-      </div>
-
-      <div className="mt-3 space-y-1">
-        <label htmlFor={`cleaning-job-status-${job.id}`} className="block text-sm font-medium text-slate-700">
-          Status
-        </label>
-        <select
-          id={`cleaning-job-status-${job.id}`}
-          value={job.status}
-          onChange={(event) => {
-            if (onStatusChange) {
-              onStatusChange(job.id, event.target.value);
-            }
-          }}
-          disabled={statusUpdating}
-          className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {(showOwnerActions ? ownerStatusOptions : STATUS_OPTIONS).map((status) => (
-            <option key={status} value={status}>
-              {formatStatusLabel(status)}
-            </option>
-          ))}
-        </select>
-        {statusUpdating ? <p className="text-xs text-slate-500">Updating...</p> : null}
-      </div>
-
-      {showOwnerActions ? (
-        <section className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <h4 className="text-sm font-medium text-slate-900">Owner actions</h4>
-
-          {job.ownerSelfAssigned ? (
-            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
-              Self-assigned by owner
-            </span>
-          ) : null}
-
-          {job.ownerSelfAssigned && job.status === "accepted" ? (
-            <button
-              type="button"
-              onClick={() => onStatusChange?.(job.id, "in_progress")}
-              disabled={statusUpdating || !onStatusChange}
-              className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Start job
-            </button>
-          ) : null}
-
-          {job.ownerSelfAssigned && job.status === "in_progress" ? (
-            <button
-              type="button"
-              onClick={() => onStatusChange?.(job.id, "completed")}
-              disabled={statusUpdating || !onStatusChange}
-              className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Complete job
-            </button>
-          ) : null}
-
-          {job.ownerSelfAssigned && job.status === "completed" ? (
-            <p className="text-xs text-slate-600">Owner completed this job.</p>
-          ) : null}
-
-          {!job.ownerSelfAssigned && !job.assignedProviderId ? (
-            <button
-              type="button"
-              onClick={() => onOwnerSelfAssign?.(job.id)}
-              disabled={ownerSelfAssigning || !onOwnerSelfAssign}
-              className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {ownerSelfAssigning ? "Self-assigning..." : "Self-assign"}
-            </button>
-          ) : null}
-
-          {!job.ownerSelfAssigned && !!job.assignedProviderId ? (
-            <p className="text-xs text-slate-600">
-              Provider-assigned job. Provider controls accept/start/complete.
-            </p>
-          ) : null}
-        </section>
-      ) : null}
-
-      {showCleanerActions ? (
-        <section className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <h4 className="text-sm font-medium text-slate-900">Cleaner actions</h4>
-
-          {job.status === "assigned" ? (
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => onStatusChange?.(job.id, "accepted")}
-                disabled={statusUpdating || !onStatusChange}
-                className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Accept job
-              </button>
-              <button
-                type="button"
-                onClick={() => onStatusChange?.(job.id, "declined")}
-                disabled={statusUpdating || !onStatusChange}
-                className="min-h-11 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Decline job
-              </button>
-            </div>
-          ) : null}
-
-          {job.status === "accepted" ? (
-            <button
-              type="button"
-              onClick={() => onStatusChange?.(job.id, "in_progress")}
-              disabled={statusUpdating || !onStatusChange}
-              className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Start job
-            </button>
-          ) : null}
-
-          {job.status === "in_progress" ? (
-            <button
-              type="button"
-              onClick={() => onStatusChange?.(job.id, "completed")}
-              disabled={statusUpdating || !onStatusChange}
-              className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Complete job
-            </button>
-          ) : null}
-
-          {job.status === "completed" ? (
-            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
-              Job completed
-            </span>
-          ) : null}
-
-          {job.status === "needs_assignment" ? (
-            <p className="text-xs text-slate-600">
-              This job still needs a provider.
-            </p>
-          ) : null}
-
-          {job.status === "cancelled" ? (
-            <p className="text-xs text-slate-600">This job is cancelled.</p>
-          ) : null}
-
-          {job.status === "declined" ? (
-            <p className="text-xs text-slate-600">This job was declined and needs reassignment.</p>
-          ) : null}
-        </section>
-      ) : null}
-
-      <section className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <h4 className="text-sm font-medium text-slate-900">Report issue</h4>
-
-        <div className="space-y-2 text-sm text-slate-700">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={job.maintenanceNeeded}
-              disabled={issueFlagsUpdating}
-              onChange={(event) =>
-                onIssueFlagsChange?.(job.id, {
-                  maintenanceNeeded: event.target.checked,
-                })
-              }
-              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 disabled:cursor-not-allowed"
-            />
-            <span>Maintenance needed</span>
-          </label>
-
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={job.restockNeeded}
-              disabled={issueFlagsUpdating}
-              onChange={(event) =>
-                onIssueFlagsChange?.(job.id, {
-                  restockNeeded: event.target.checked,
-                })
-              }
-              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 disabled:cursor-not-allowed"
-            />
-            <span>Restock needed</span>
-          </label>
-
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={job.damageFound}
-              disabled={issueFlagsUpdating}
-              onChange={(event) =>
-                onIssueFlagsChange?.(job.id, {
-                  damageFound: event.target.checked,
-                })
-              }
-              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 disabled:cursor-not-allowed"
-            />
-            <span>Damage found</span>
-          </label>
-        </div>
-
-        {issueFlagsUpdating ? (
-          <p className="text-xs text-slate-500">Updating issue flags...</p>
-        ) : null}
-      </section>
-
-      <section className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-sm font-medium text-slate-900">Notes</h4>
-          {!isEditingNotes ? (
-            <button
-              type="button"
-              onClick={handleEditNotes}
-              disabled={notesUpdating}
-              className="min-h-11 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {job.notes ? "Add note" : "Add note"}
-            </button>
-          ) : null}
-        </div>
-
-        {!isEditingNotes ? (
-          job.notes ? <p className="text-sm text-slate-700">{job.notes}</p> : null
-        ) : (
+    <article
+      className="rounded-[12px] border border-[#E5E0D8] border-l-4 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
+      style={{ borderLeftColor: getStatusLeftBorderColor(job.status) }}
+    >
+      <div className="border-b border-[#E5E0D8] bg-[#FAF7F2]/70 px-5 py-4">
+        <div className="flex items-start justify-between gap-3">
           <div className="space-y-2">
-            <textarea
-              value={draftNotes}
-              onChange={(event) => setDraftNotes(event.target.value)}
-              rows={3}
-              disabled={notesUpdating}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-            />
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={handleSaveNotes}
-                disabled={notesUpdating}
-                className="min-h-11 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Save note
-              </button>
-              <button
-                type="button"
-                onClick={handleCancelNotes}
-                disabled={notesUpdating}
-                className="min-h-11 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Cancel
-              </button>
+            <h3 className="font-serif text-base font-semibold text-[#0D1B2A]">{job.title}</h3>
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex rounded-full bg-[#E8F4F1] px-3 py-1 text-xs font-medium text-[#0F6A5F]">
+                {formatRequestedServiceType(job.requestedServiceType)}
+              </span>
+              <span className="inline-flex rounded-full bg-[#F2F4F7] px-3 py-1 text-xs font-medium text-[#546170]">
+                {formatSourcePlatformLabel(job.sourcePlatform)}
+              </span>
+              {isManualJob ? <span className="inline-flex rounded-full bg-[#FFF4E5] px-3 py-1 text-xs font-medium text-[#9A5B00]">Manual job</span> : null}
+              {job.ownerSelfAssigned ? <span className="inline-flex rounded-full bg-[#E8F4F1] px-3 py-1 text-xs font-medium text-[#0F6A5F]">Self-assigned by owner</span> : null}
+              {isHighPriority ? <span className="inline-flex rounded-full bg-[#FFF4E5] px-3 py-1 text-xs font-medium text-[#9A5B00]">{formatPriority(job.priority)} priority</span> : null}
+              {hasIssuesFlagged ? <span className="inline-flex rounded-full bg-[#FDECEC] px-3 py-1 text-xs font-medium text-[#B42318]">Issues flagged</span> : null}
             </div>
           </div>
-        )}
 
-        {notesUpdating ? <p className="text-xs text-slate-500">Saving notes...</p> : null}
-      </section>
+          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeColor(job.status).bg} ${getStatusBadgeColor(job.status).text}`}>
+            {formatStatusLabel(job.status)}
+          </span>
+        </div>
+      </div>
 
-      {activityItems.length > 0 ? (
-        <section className="mt-3 space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <h4 className="text-sm font-medium text-slate-900">Activity</h4>
-          <div className="space-y-1 text-sm text-slate-700">
-            {activityItems.map((item) => (
-              <p key={item.label}>
-                <span className="font-medium text-slate-900">{item.label}:</span>{" "}
-                {formatActivityDateTimeLabel(item.value)}
-              </p>
-            ))}
+      <div className="space-y-4 p-5">
+        <div className="grid gap-3 text-sm text-[#7A7060] sm:grid-cols-2 xl:grid-cols-4">
+          <p><span className="font-medium text-[#0D1B2A]">Scheduled:</span> {formatDateLabel(job.scheduledDate)}</p>
+          <p><span className="font-medium text-[#0D1B2A]">Service:</span> {formatRequestedServiceType(job.requestedServiceType)}</p>
+          <p><span className="font-medium text-[#0D1B2A]">Priority:</span> {formatPriority(job.priority)}</p>
+          {job.dueTime ? <p><span className="font-medium text-[#0D1B2A]">Due time:</span> {job.dueTime}</p> : null}
+          {job.estimatedDurationMinutes !== null ? <p><span className="font-medium text-[#0D1B2A]">Duration:</span> {job.estimatedDurationMinutes} min</p> : null}
+        </div>
+
+        {job.ownerInstructions ? (
+          <p className="rounded-lg border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-3 text-sm text-[#7A7060]">
+            <span className="font-medium text-[#0D1B2A]">Owner instructions available</span>
+          </p>
+        ) : null}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <p className="text-sm text-[#7A7060]"><span className="font-medium text-[#0D1B2A]">Assigned to:</span> {job.assignedProvider ? job.assignedProvider.name : "Needs provider"}</p>
+          {job.assignedProvider?.companyName ? <p className="text-sm text-[#7A7060]"><span className="font-medium text-[#0D1B2A]">Company:</span> {job.assignedProvider.companyName}</p> : null}
+          {job.ownerSelfAssigned ? <p className="text-sm text-[#7A7060]"><span className="font-medium text-[#0D1B2A]">Owner status:</span> Self-assigned by owner</p> : null}
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={primaryAction.onClick}
+            disabled={primaryAction.disabled}
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[#0D1B2A] px-5 py-2.5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(13,27,42,0.12)] transition hover:bg-[#14243A] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          >
+            {primaryAction.label}
+          </button>
+        </div>
+
+        <details className="rounded-[12px] border border-[#E5E0D8] bg-[#FAF7F2] p-4">
+          <summary className="cursor-pointer text-sm font-medium text-[#0D1B2A]">More</summary>
+          <div className="mt-4 space-y-4">
+            <div className="space-y-2">
+              <label htmlFor={`cleaning-job-provider-${job.id}`} className="block text-sm font-medium text-[#0D1B2A]">Assigned provider</label>
+              <select
+                id={`cleaning-job-provider-${job.id}`}
+                value={job.assignedProviderId ?? ""}
+                onChange={(event) => {
+                  if (onProviderChange) {
+                    const selectedProviderId = event.target.value;
+                    onProviderChange(job.id, selectedProviderId === "" ? null : selectedProviderId);
+                  }
+                }}
+                disabled={providerUpdating}
+                className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#0D1B2A] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <option value="">Needs provider</option>
+                {cleanerProviders.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.companyName ? `${provider.name} (${provider.companyName})` : provider.name}
+                  </option>
+                ))}
+              </select>
+              {providerUpdating ? <p className="text-xs text-[#7A7060]">Updating assignment...</p> : null}
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor={`cleaning-job-status-${job.id}`} className="block text-sm font-medium text-[#0D1B2A]">Status</label>
+              <select
+                id={`cleaning-job-status-${job.id}`}
+                value={job.status}
+                onChange={(event) => {
+                  if (onStatusChange) {
+                    onStatusChange(job.id, event.target.value);
+                  }
+                }}
+                disabled={statusUpdating}
+                className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#0D1B2A] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {(showOwnerActions ? ownerStatusOptions : STATUS_OPTIONS).map((status) => (
+                  <option key={status} value={status}>{formatStatusLabel(status)}</option>
+                ))}
+              </select>
+              {statusUpdating ? <p className="text-xs text-[#7A7060]">Updating...</p> : null}
+            </div>
+
+            {showOwnerActions ? (
+              <section className="space-y-3 rounded-[12px] border border-[#E5E0D8] bg-white p-4">
+                <h4 className="text-sm font-medium text-[#0D1B2A]">Owner actions</h4>
+                {job.ownerSelfAssigned ? <span className="inline-flex rounded-full bg-[#E8F4F1] px-3 py-1 text-xs font-medium text-[#0F6A5F]">Self-assigned by owner</span> : null}
+                {job.ownerSelfAssigned && job.status === "accepted" ? <button type="button" onClick={() => onStatusChange?.(job.id, "in_progress")} disabled={statusUpdating || !onStatusChange} className="min-h-11 rounded-full bg-[#0D1B2A] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#14243A] disabled:cursor-not-allowed disabled:opacity-60">Start job</button> : null}
+                {job.ownerSelfAssigned && job.status === "in_progress" ? <button type="button" onClick={() => onStatusChange?.(job.id, "completed")} disabled={statusUpdating || !onStatusChange} className="min-h-11 rounded-full bg-[#0D1B2A] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#14243A] disabled:cursor-not-allowed disabled:opacity-60">Complete job</button> : null}
+                {job.ownerSelfAssigned && job.status === "completed" ? <p className="text-xs text-[#7A7060]">Owner completed this job.</p> : null}
+                {!job.ownerSelfAssigned && !job.assignedProviderId ? <button type="button" onClick={() => onOwnerSelfAssign?.(job.id)} disabled={ownerSelfAssigning || !onOwnerSelfAssign} className="min-h-11 rounded-full bg-[#0D1B2A] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#14243A] disabled:cursor-not-allowed disabled:opacity-60">{ownerSelfAssigning ? "Self-assigning..." : "Self-assign"}</button> : null}
+                {!job.ownerSelfAssigned && !!job.assignedProviderId ? <p className="text-xs text-[#7A7060]">Provider-assigned job. Provider controls accept/start/complete.</p> : null}
+              </section>
+            ) : null}
+
+            {showCleanerActions ? (
+              <section className="space-y-3 rounded-[12px] border border-[#E5E0D8] bg-white p-4">
+                <h4 className="text-sm font-medium text-[#0D1B2A]">Cleaner actions</h4>
+                {job.status === "assigned" ? (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <button type="button" onClick={() => onStatusChange?.(job.id, "accepted")} disabled={statusUpdating || !onStatusChange} className="min-h-11 rounded-full bg-[#0D1B2A] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#14243A] disabled:cursor-not-allowed disabled:opacity-60">Accept job</button>
+                    <button type="button" onClick={() => onStatusChange?.(job.id, "declined")} disabled={statusUpdating || !onStatusChange} className="min-h-11 rounded-full border border-[#E5E0D8] bg-white px-4 py-2.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2] disabled:cursor-not-allowed disabled:opacity-60">Decline job</button>
+                  </div>
+                ) : null}
+                {job.status === "accepted" ? <button type="button" onClick={() => onStatusChange?.(job.id, "in_progress")} disabled={statusUpdating || !onStatusChange} className="min-h-11 rounded-full bg-[#0D1B2A] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#14243A] disabled:cursor-not-allowed disabled:opacity-60">Start job</button> : null}
+                {job.status === "in_progress" ? <button type="button" onClick={() => onStatusChange?.(job.id, "completed")} disabled={statusUpdating || !onStatusChange} className="min-h-11 rounded-full bg-[#0D1B2A] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#14243A] disabled:cursor-not-allowed disabled:opacity-60">Complete job</button> : null}
+                {job.status === "completed" ? <span className="inline-flex rounded-full bg-[#E8F4F1] px-3 py-1 text-xs font-medium text-[#0F6A5F]">Job completed</span> : null}
+                {job.status === "needs_assignment" ? <p className="text-xs text-[#7A7060]">This job still needs a provider.</p> : null}
+                {job.status === "cancelled" ? <p className="text-xs text-[#7A7060]">This job is cancelled.</p> : null}
+                {job.status === "declined" ? <p className="text-xs text-[#7A7060]">This job was declined and needs reassignment.</p> : null}
+              </section>
+            ) : null}
+
+            <section className="space-y-3 rounded-[12px] border border-[#E5E0D8] bg-white p-4">
+              <h4 className="text-sm font-medium text-[#0D1B2A]">Report issue</h4>
+              <div className="space-y-2 text-sm text-[#7A7060]">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={job.maintenanceNeeded} disabled={issueFlagsUpdating} onChange={(event) => onIssueFlagsChange?.(job.id, { maintenanceNeeded: event.target.checked })} className="h-4 w-4 rounded border-[#E5E0D8] text-[#0D1B2A] focus:ring-[#B8860B] disabled:cursor-not-allowed" /><span>Maintenance needed</span></label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={job.restockNeeded} disabled={issueFlagsUpdating} onChange={(event) => onIssueFlagsChange?.(job.id, { restockNeeded: event.target.checked })} className="h-4 w-4 rounded border-[#E5E0D8] text-[#0D1B2A] focus:ring-[#B8860B] disabled:cursor-not-allowed" /><span>Restock needed</span></label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={job.damageFound} disabled={issueFlagsUpdating} onChange={(event) => onIssueFlagsChange?.(job.id, { damageFound: event.target.checked })} className="h-4 w-4 rounded border-[#E5E0D8] text-[#0D1B2A] focus:ring-[#B8860B] disabled:cursor-not-allowed" /><span>Damage found</span></label>
+              </div>
+              {issueFlagsUpdating ? <p className="text-xs text-[#7A7060]">Updating issue flags...</p> : null}
+            </section>
+
+            <section className="space-y-3 rounded-[12px] border border-[#E5E0D8] bg-white p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-sm font-medium text-[#0D1B2A]">Notes</h4>
+                {!isEditingNotes ? <button type="button" onClick={handleEditNotes} disabled={notesUpdating} className="min-h-11 rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-2.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60">Add note</button> : null}
+              </div>
+              {!isEditingNotes ? (job.notes ? <p className="text-sm text-[#7A7060]">{job.notes}</p> : null) : (
+                <div className="space-y-2">
+                  <textarea value={draftNotes} onChange={(event) => setDraftNotes(event.target.value)} rows={3} disabled={notesUpdating} className="w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#0D1B2A] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60" />
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <button type="button" onClick={handleSaveNotes} disabled={notesUpdating} className="min-h-11 rounded-full bg-[#0D1B2A] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#14243A] disabled:cursor-not-allowed disabled:opacity-60">Save note</button>
+                    <button type="button" onClick={handleCancelNotes} disabled={notesUpdating} className="min-h-11 rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-2.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60">Cancel</button>
+                  </div>
+                </div>
+              )}
+              {notesUpdating ? <p className="text-xs text-[#7A7060]">Saving notes...</p> : null}
+            </section>
+
+            {activityItems.length > 0 ? (
+              <section className="space-y-2 rounded-[12px] border border-[#E5E0D8] bg-[#FAF7F2] p-4">
+                <h4 className="text-sm font-medium text-[#0D1B2A]">Activity</h4>
+                <div className="space-y-1 text-sm text-[#7A7060]">
+                  {activityItems.map((item) => (
+                    <p key={item.label}><span className="font-medium text-[#0D1B2A]">{item.label}:</span>{" "}{formatActivityDateTimeLabel(item.value)}</p>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {job.calendarEvent ? (
+              <div className="space-y-1 rounded-[12px] border border-[#E5E0D8] bg-[#FAF7F2] p-4">
+                <p className="text-sm text-[#7A7060]"><span className="font-medium text-[#0D1B2A]">Stay:</span>{" "}{formatDateLabel(job.calendarEvent.checkInDate)} {"→"} {formatDateLabel(job.calendarEvent.checkOutDate)}</p>
+                <p className="text-sm text-[#7A7060]"><span className="font-medium text-[#0D1B2A]">Nights:</span> {job.calendarEvent.nights}</p>
+                <p className="text-sm text-[#7A7060]"><span className="font-medium text-[#0D1B2A]">Calendar event:</span> {job.calendarEvent.summary}</p>
+              </div>
+            ) : null}
           </div>
-        </section>
-      ) : null}
-
-      {job.calendarEvent ? (
-        <div className="mt-3 space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="text-sm text-slate-700">
-            <span className="font-medium text-slate-900">Stay:</span>{" "}
-            {formatDateLabel(job.calendarEvent.checkInDate)} {"→"} {formatDateLabel(job.calendarEvent.checkOutDate)}
-          </p>
-          <p className="text-sm text-slate-700">
-            <span className="font-medium text-slate-900">Nights:</span> {job.calendarEvent.nights}
-          </p>
-          <p className="text-sm text-slate-700">
-            <span className="font-medium text-slate-900">Calendar event:</span> {job.calendarEvent.summary}
-          </p>
-        </div>
-      ) : null}
-        </div>
-      </details>
+        </details>
+      </div>
     </article>
   );
 }

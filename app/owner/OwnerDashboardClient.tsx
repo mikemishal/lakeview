@@ -3397,6 +3397,36 @@ export default function HomePage() {
 
           {ownerActiveTab === "jobs" ? (
             <>
+              <div className="space-y-1">
+                <h2 className="font-serif text-3xl font-bold text-[#0D1B2A]">Jobs</h2>
+                <p className="text-base text-[#7A7060]">
+                  Track turnovers, cleanings, maintenance, and restock work.
+                </p>
+              </div>
+
+              <div className="rounded-[14px] border border-[#E5E0D8] bg-[#0D1B2A] p-5 text-white shadow-[0_12px_24px_rgba(13,27,42,0.16)]">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#E5E0D8]">
+                      Quick create
+                    </p>
+                    <h3 className="font-serif text-2xl font-semibold">Create a one-off job</h3>
+                    <p className="max-w-2xl text-sm text-[#F3EDE2]">
+                      Use the form below to add a custom cleaning, maintenance, or restock request.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      adHocJobFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#B8860B] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#9F7408]"
+                  >
+                    + New job
+                  </button>
+                </div>
+              </div>
+
               <div ref={adHocJobFormRef} className="scroll-mt-4">
                 {adHocJobError ? (
                   <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -3418,82 +3448,100 @@ export default function HomePage() {
                 />
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-slate-900">Cleaning jobs</h3>
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-              <label htmlFor="cleaningJobStatusFilter" className="text-sm text-slate-700">
-                Status
-              </label>
-              <select
-                id="cleaningJobStatusFilter"
-                value={cleaningJobStatusFilter}
-                onChange={(event) => setCleaningJobStatusFilter(event.target.value)}
-                className="min-h-11 rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-slate-500"
-              >
-                <option value="all">All</option>
-                <option value="needs_assignment">Needs provider</option>
-                <option value="assigned">Assigned</option>
-                <option value="declined">Declined</option>
-                <option value="accepted">Accepted</option>
-                <option value="in_progress">In progress</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
+              <section className="mt-6 rounded-[14px] border border-[#E5E0D8] bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="space-y-1">
+                    <h3 className="font-serif text-xl font-semibold text-[#0D1B2A]">Filter jobs</h3>
+                    <p className="text-sm text-[#7A7060]">Narrow the queue by status, cleaner, or view mode.</p>
+                  </div>
 
-              <label htmlFor="cleaningJobProviderFilter" className="text-sm text-slate-700">
-                Cleaner
-              </label>
-              <select
-                id="cleaningJobProviderFilter"
-                value={cleaningJobProviderFilter}
-                onChange={(event) => setCleaningJobProviderFilter(event.target.value)}
-                className="min-h-11 rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-slate-500"
-              >
-                <option value="all">All cleaners</option>
-                <option value="unassigned">Needs provider</option>
-                {cleanerProviders.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.companyName ? `${provider.name} (${provider.companyName})` : provider.name}
-                  </option>
-                ))}
-              </select>
+                  <div className="inline-flex rounded-full bg-[#FAF7F2] p-1">
+                    <button
+                      type="button"
+                      onClick={() => setCleaningJobsView("list")}
+                      className={`min-h-11 rounded-full px-4 py-2.5 text-sm font-medium transition ${
+                        cleaningJobsView === "list"
+                          ? "bg-[#0D1B2A] text-white shadow-[0_6px_16px_rgba(13,27,42,0.16)]"
+                          : "text-[#7A7060] hover:text-[#0D1B2A]"
+                      }`}
+                    >
+                      List
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCleaningJobsView("grouped")}
+                      className={`min-h-11 rounded-full px-4 py-2.5 text-sm font-medium transition ${
+                        cleaningJobsView === "grouped"
+                          ? "bg-[#0D1B2A] text-white shadow-[0_6px_16px_rgba(13,27,42,0.16)]"
+                          : "text-[#7A7060] hover:text-[#0D1B2A]"
+                      }`}
+                    >
+                      Grouped
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateOwnerTab("calendar")}
+                      className="min-h-11 rounded-full px-4 py-2.5 text-sm font-medium text-[#7A7060] transition hover:text-[#0D1B2A]"
+                    >
+                      Calendar
+                    </button>
+                  </div>
+                </div>
 
-              <button
-                type="button"
-                onClick={() => setCleaningJobsView("list")}
-                className={`min-h-11 rounded-md px-4 py-2.5 text-sm font-medium transition ${
-                  cleaningJobsView === "list"
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                }`}
-              >
-                List
-              </button>
-              <button
-                type="button"
-                onClick={() => setCleaningJobsView("grouped")}
-                className={`min-h-11 rounded-md px-4 py-2.5 text-sm font-medium transition ${
-                  cleaningJobsView === "grouped"
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                }`}
-              >
-                Grouped
-              </button>
-              <button
-                type="button"
-                onClick={() => updateOwnerTab("calendar")}
-                className="min-h-11 rounded-md bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
-              >
-                Calendar
-              </button>
-            </div>
-              </div>
+                <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                  <div className="space-y-2">
+                    <label htmlFor="cleaningJobStatusFilter" className="block text-sm font-medium text-[#0D1B2A]">
+                      Status
+                    </label>
+                    <select
+                      id="cleaningJobStatusFilter"
+                      value={cleaningJobStatusFilter}
+                      onChange={(event) => setCleaningJobStatusFilter(event.target.value)}
+                      className="min-h-11 w-full rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-2.5 text-sm text-[#0D1B2A] outline-none transition focus:border-[#B8860B]"
+                    >
+                      <option value="all">All</option>
+                      <option value="needs_assignment">Needs provider</option>
+                      <option value="assigned">Assigned</option>
+                      <option value="declined">Declined</option>
+                      <option value="accepted">Accepted</option>
+                      <option value="in_progress">In progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="cleaningJobProviderFilter" className="block text-sm font-medium text-[#0D1B2A]">
+                      Cleaner
+                    </label>
+                    <select
+                      id="cleaningJobProviderFilter"
+                      value={cleaningJobProviderFilter}
+                      onChange={(event) => setCleaningJobProviderFilter(event.target.value)}
+                      className="min-h-11 w-full rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-2.5 text-sm text-[#0D1B2A] outline-none transition focus:border-[#B8860B]"
+                    >
+                      <option value="all">All cleaners</option>
+                      <option value="unassigned">Needs provider</option>
+                      {cleanerProviders.map((provider) => (
+                        <option key={provider.id} value={provider.id}>
+                          {provider.companyName ? `${provider.name} (${provider.companyName})` : provider.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-end">
+                    <p className="rounded-2xl border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-3 text-sm text-[#7A7060]">
+                      {filteredCleaningJobs.length} job{filteredCleaningJobs.length === 1 ? "" : "s"} shown
+                    </p>
+                  </div>
+                </div>
+              </section>
 
               {cleaningJobGenerationMessage ? (
-            <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {cleaningJobGenerationMessage}
-            </p>
+                <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {cleaningJobGenerationMessage}
+                </p>
               ) : null}
 
               {loadingCleaningJobsPropertyId ? (
@@ -3550,7 +3598,7 @@ export default function HomePage() {
               ) : null}
 
               {!loadingCleaningJobsPropertyId && !cleaningJobsError && cleaningJobs.length > 0 && filteredCleaningJobs.length === 0 ? (
-            <p className="text-sm text-slate-600">No cleaning jobs match this filter.</p>
+            <p className="text-sm text-[#7A7060]">No cleaning jobs match this filter.</p>
               ) : null}
 
               {!loadingCleaningJobsPropertyId && !cleaningJobsError && filteredCleaningJobs.length > 0 ? (
@@ -3639,11 +3687,11 @@ export default function HomePage() {
         ) : null}
 
         {ownerActiveTab === "calendar" ? (
-          <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="space-y-3 rounded-[14px] border border-[#E5E0D8] bg-white p-6 shadow-[0_10px_24px_rgba(13,27,42,0.18)]">
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold text-slate-900">Cleaning calendar</h3>
-              <p className="text-sm text-slate-600">
-                Calendar view for the current job filters and selected property.
+              <h3 className="text-lg font-semibold text-[#0D1B2A]">Calendar</h3>
+              <p className="text-sm text-[#7A7060]">
+                Turnovers, cleanings, and scheduled work
               </p>
             </div>
             <ProviderJobCalendar jobs={ownerCalendarJobs} />

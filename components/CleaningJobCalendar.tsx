@@ -98,7 +98,10 @@ function toTimestamp(value: string): number {
 export default function CleaningJobCalendar({ jobs }: CleaningJobCalendarProps) {
   if (jobs.length === 0) {
     return (
-      <p className="text-sm text-slate-600">No cleaning jobs scheduled.</p>
+      <div className="rounded-[12px] border-2 border-dashed border-[#E5E0D8] bg-white p-8 text-center">
+        <p className="text-sm font-medium text-[#0D1B2A]">No jobs scheduled</p>
+        <p className="mt-1 text-sm text-[#7A7060]">This day is clear. New turnovers and assigned work will appear here.</p>
+      </div>
     );
   }
 
@@ -123,107 +126,117 @@ export default function CleaningJobCalendar({ jobs }: CleaningJobCalendarProps) 
         return (
           <section
             key={dateKey}
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="rounded-[12px] border border-[#E5E0D8] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
           >
-            <h3 className="mb-3 text-sm font-semibold text-slate-900">{formatDateLabel(`${dateKey}T00:00:00.000Z`)}</h3>
+            <h3 className="mb-3 text-sm font-semibold text-[#0D1B2A]">{formatDateLabel(`${dateKey}T00:00:00.000Z`)}</h3>
 
             <div className="space-y-3">
-              {dayJobs.map((job) => (
-                <article key={job.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  {(() => {
-                    const activeIssueLabels: string[] = [];
+              {dayJobs.map((job) => {
+                // Determine left border color based on job status
+                let leftBorderColor = "border-l-[#D97706]"; // Amber default
+                if (["assigned", "accepted", "completed", "synced"].includes(job.status)) {
+                  leftBorderColor = "border-l-[#1A6B60]"; // Teal
+                } else if (["cancelled", "issue_reported", "declined"].includes(job.status)) {
+                  leftBorderColor = "border-l-[#EF4444]"; // Red
+                }
 
-                    if (job.maintenanceNeeded) {
-                      activeIssueLabels.push("Maintenance needed");
-                    }
+                return (
+                  <article key={job.id} className={`rounded-[12px] border border-l-4 border-[#E5E0D8] bg-white p-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)] ${leftBorderColor}`}>
+                      {(() => {
+                      const activeIssueLabels: string[] = [];
 
-                    if (job.restockNeeded) {
-                      activeIssueLabels.push("Restock needed");
-                    }
+                      if (job.maintenanceNeeded) {
+                        activeIssueLabels.push("Maintenance needed");
+                      }
 
-                    if (job.damageFound) {
-                      activeIssueLabels.push("Damage found");
-                    }
+                      if (job.restockNeeded) {
+                        activeIssueLabels.push("Restock needed");
+                      }
 
-                    return (
-                      <>
-                  <div className="mb-2 flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-slate-900">{job.title}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-                          {formatCleaningTypeLabel(job.cleaningType)}
-                        </span>
-                        <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                          {formatSourcePlatformLabel(job.sourcePlatform)}
-                        </span>
-                      </div>
-                      {activeIssueLabels.length > 0 ? (
-                        <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                          Issues flagged
-                        </span>
-                      ) : null}
-                    </div>
-                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium uppercase tracking-wide text-slate-700">
-                      {formatStatusLabel(job.status)}
-                    </span>
-                  </div>
+                      if (job.damageFound) {
+                        activeIssueLabels.push("Damage found");
+                      }
 
-                  {activeIssueLabels.length > 0 ? (
-                    <div className="mb-2 flex flex-wrap gap-2">
-                      {activeIssueLabels.map((label) => (
-                        <span
-                          key={label}
-                          className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700"
-                        >
-                          {label}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {job.notes ? (
-                    <p className="text-sm text-slate-700">{job.notes}</p>
-                  ) : null}
-
-                  <div className="mt-2 text-sm text-slate-700">
-                    <p>
-                      <span className="font-medium text-slate-900">Assigned to:</span>{" "}
-                      {job.assignedProvider ? (
-                        <span>
-                          {job.assignedProvider.name}
-                          {job.assignedProvider.companyName ? (
-                            <span className="ml-1 text-xs text-slate-600">
-                              ({job.assignedProvider.companyName})
+                      return (
+                        <>
+                          <div className="mb-2 flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold text-[#0D1B2A]">{job.title}</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                <span className="inline-flex rounded-full bg-[#B8860B]/10 px-2 py-0.5 text-xs font-medium text-[#B8860B]">
+                                  {formatCleaningTypeLabel(job.cleaningType)}
+                                </span>
+                                <span className="inline-flex rounded-full bg-[#7A7060]/10 px-2 py-0.5 text-xs font-medium text-[#7A7060]">
+                                  {formatSourcePlatformLabel(job.sourcePlatform)}
+                                </span>
+                              </div>
+                              {activeIssueLabels.length > 0 ? (
+                                <span className="inline-flex rounded-full bg-[#D97706]/10 px-2 py-0.5 text-xs font-medium text-[#D97706]">
+                                  Issues flagged
+                                </span>
+                              ) : null}
+                            </div>
+                            <span className="rounded-full bg-[#1A6B60] px-2 py-1 text-xs font-medium text-white">
+                              {formatStatusLabel(job.status)}
                             </span>
-                          ) : null}
-                        </span>
-                      ) : (
-                        <span className="text-slate-500">Needs provider</span>
-                      )}
-                    </p>
-                  </div>
+                          </div>
 
-                  {job.calendarEvent ? (
-                    <div className="mt-2 space-y-1 text-sm text-slate-700">
-                      <p>
-                        <span className="font-medium text-slate-900">Stay:</span>{" "}
-                        {formatDateLabel(job.calendarEvent.checkInDate)} {"→"} {formatDateLabel(job.calendarEvent.checkOutDate)}
-                      </p>
-                      <p>
-                        <span className="font-medium text-slate-900">Nights:</span> {job.calendarEvent.nights}
-                      </p>
-                      <p>
-                        <span className="font-medium text-slate-900">Calendar event:</span>{" "}
-                        {job.calendarEvent.summary}
-                      </p>
-                    </div>
-                  ) : null}
-                      </>
-                    );
-                  })()}
-                </article>
-              ))}
+                          {activeIssueLabels.length > 0 ? (
+                            <div className="mb-2 flex flex-wrap gap-2">
+                              {activeIssueLabels.map((label) => (
+                                <span
+                                  key={label}
+                                  className="rounded-full bg-[#E5E0D8] px-2 py-0.5 text-xs font-medium text-[#7A7060]"
+                                >
+                                  {label}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+
+                          {job.notes ? (
+                            <p className="text-sm text-[#7A7060]">{job.notes}</p>
+                          ) : null}
+
+                          <div className="mt-2 text-sm text-[#7A7060]">
+                            <p>
+                              <span className="font-medium text-[#0D1B2A]">Assigned to:</span>{" "}
+                              {job.assignedProvider ? (
+                                <span>
+                                  {job.assignedProvider.name}
+                                  {job.assignedProvider.companyName ? (
+                                    <span className="ml-1 text-xs text-[#7A7060]">
+                                      ({job.assignedProvider.companyName})
+                                    </span>
+                                  ) : null}
+                                </span>
+                              ) : (
+                                <span className="text-[#D97706]">Needs provider</span>
+                              )}
+                            </p>
+                          </div>
+
+                          {job.calendarEvent ? (
+                            <div className="mt-2 space-y-1 text-sm text-[#7A7060]">
+                              <p>
+                                <span className="font-medium text-[#0D1B2A]">Stay:</span>{" "}
+                                {formatDateLabel(job.calendarEvent.checkInDate)} {"→"} {formatDateLabel(job.calendarEvent.checkOutDate)}
+                              </p>
+                              <p>
+                                <span className="font-medium text-[#0D1B2A]">Nights:</span> {job.calendarEvent.nights}
+                              </p>
+                              <p>
+                                <span className="font-medium text-[#0D1B2A]">Calendar event:</span>{" "}
+                                {job.calendarEvent.summary}
+                              </p>
+                            </div>
+                          ) : null}
+                        </>
+                      );
+                    })()}
+                  </article>
+                );
+              })}
             </div>
           </section>
         );
