@@ -385,6 +385,50 @@ function toDateOnly(value: string | Date): string {
   ).padStart(2, "0")}`;
 }
 
+function formatLongDateLabel(value: string | Date): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return parsed.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatTimeLabel(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) {
+    return trimmed;
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return trimmed;
+  }
+
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+
+  return date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function addDaysToDateOnly(dateOnly: string, days: number): string {
   const base = new Date(`${dateOnly}T00:00:00.000Z`);
   if (Number.isNaN(base.getTime())) {
@@ -660,6 +704,26 @@ export default function HomePage() {
   const maintenanceJobs = maintenanceIssueJobs;
   const restockJobs = restockIssueJobs;
   const damageJobs = damageIssueJobs;
+  const ownerGreetingName = currentOwnerProfile?.name?.trim() ?? "";
+  const ownerGreeting = ownerGreetingName ? `Good morning, ${ownerGreetingName}` : "Good morning";
+  const todayLongDate = formatLongDateLabel(new Date());
+  const nextCheckoutJob = futureJobsAll
+    .filter((job) => job.status !== "cancelled" && job.status !== "completed")
+    .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())[0];
+  const nextCheckoutDate = nextCheckoutJob ? formatLongDateLabel(nextCheckoutJob.scheduledDate) : "";
+  const nextCheckoutTime = nextCheckoutJob ? formatTimeLabel(nextCheckoutJob.dueTime) : "";
+  const nextCheckoutProviderLabel = nextCheckoutJob
+    ? nextCheckoutJob.assignedProvider
+      ? nextCheckoutJob.assignedProvider.companyName
+        ? `${nextCheckoutJob.assignedProvider.name} (${nextCheckoutJob.assignedProvider.companyName})`
+        : nextCheckoutJob.assignedProvider.name
+      : nextCheckoutJob.ownerSelfAssigned
+      ? "Self-assigned by owner"
+      : "Unassigned"
+    : "";
+  const nextCheckoutNeedsAssignment = Boolean(
+    nextCheckoutJob && !nextCheckoutJob.assignedProviderId && !nextCheckoutJob.ownerSelfAssigned
+  );
   const ownerNotificationJobQueue = focusedOwnerNotificationJob
     ? [focusedOwnerNotificationJob]
     : [];
@@ -2181,70 +2245,64 @@ export default function HomePage() {
       showPropertiesLink={Boolean(currentOwnerProfile && !inviteCodeBlocked)}
       showJobsLink={Boolean(currentOwnerProfile && !inviteCodeBlocked)}
     />
-    <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 pb-24 sm:px-6 lg:px-8">
-      <header className="mb-8 space-y-2">
-        <p className="text-sm font-medium uppercase tracking-wide text-slate-500">Project Lakeview</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Owner Dashboard</h1>
-        <p className="text-sm text-slate-600">
-          Lakeview operations dashboard for properties, calendars, cleaning jobs, and provider workflows.
-        </p>
-        {currentOwnerProfile ? (
-          <p className="text-sm text-slate-700">
-            Signed in as owner:{" "}
-            <span className="font-semibold">
-              {currentOwnerProfile.companyName
-                ? `${currentOwnerProfile.name} (${currentOwnerProfile.companyName})`
-                : currentOwnerProfile.name}
-            </span>
-          </p>
-        ) : null}
-        <div className="flex flex-wrap gap-3 text-sm">
-          {currentOwnerProfile && currentServiceProvider && !inviteCodeBlocked ? (
-            <Link href="/provider" className="font-medium text-slate-700 underline">
-              Provider Dashboard
-            </Link>
+    <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-8 pb-24 sm:px-6 lg:px-8">
+      <header className="mb-8 space-y-4">
+        <section className="overflow-hidden rounded-xl border border-[#13293D] bg-[#0D1B2A] p-6 shadow-[0_10px_24px_rgba(13,27,42,0.18)]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#B8860B]">Owner dashboard</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#FAF7F2] sm:text-4xl">{ownerGreeting}</h1>
+          <p className="mt-2 text-sm text-[#E9DFCF]">{todayLongDate}</p>
+          {currentOwnerProfile ? (
+            <p className="mt-4 text-sm text-[#F5EBDD]">
+              Signed in as{" "}
+              <span className="font-semibold text-[#FAF7F2]">
+                {currentOwnerProfile.companyName
+                  ? `${currentOwnerProfile.name} (${currentOwnerProfile.companyName})`
+                  : currentOwnerProfile.name}
+              </span>
+            </p>
           ) : null}
-          {!currentServiceProvider && currentOwnerProfile && !inviteCodeBlocked ? (
-            <Link href="/onboarding" className="font-medium text-slate-700 underline">
-              Also work as a provider? Create provider profile
-            </Link>
-          ) : null}
-        </div>
-        {currentOwnerProfile && !inviteCodeBlocked ? (
-          <button
-            type="button"
-            onClick={() => {
-              void refreshOwnerDashboardData();
-            }}
-            className="min-h-11 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-          >
-            Refresh dashboard
-          </button>
-        ) : null}
+        </section>
 
         {currentOwnerProfile && !inviteCodeBlocked ? (
-          <div className="flex flex-wrap gap-2 pt-2">
-            {([
-              { id: "overview", label: "Overview" },
-              { id: "jobs", label: "Jobs" },
-              { id: "calendar", label: "Calendar" },
-              { id: "properties", label: "Properties" },
-              { id: "providers", label: "Providers" },
-              ...(isDevelopment ? ([{ id: "developer", label: "Developer" }] as const) : []),
-            ] as const).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => updateOwnerTab(tab.id)}
-                className={`min-h-11 rounded-md px-4 py-2.5 text-sm font-medium transition ${
-                  ownerActiveTab === tab.id
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {([
+                { id: "overview", label: "Dashboard" },
+                { id: "jobs", label: "Jobs" },
+                { id: "calendar", label: "Calendar" },
+                { id: "properties", label: "Properties" },
+                { id: "providers", label: "My Team" },
+                ...(isDevelopment ? ([{ id: "developer", label: "Developer" }] as const) : []),
+              ] as const).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => updateOwnerTab(tab.id)}
+                  className={`min-h-11 rounded-md px-4 py-2.5 text-sm font-medium transition ${
+                    ownerActiveTab === tab.id
+                      ? "rounded-full bg-[#B8860B] text-[#0D1B2A]"
+                      : "rounded-full border border-[#E5E0D8] bg-white text-[#7A7060] hover:bg-[#FAF7F2] hover:text-[#0D1B2A]"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <details className="text-xs text-[#7A7060]">
+              <summary className="cursor-pointer select-none">Dashboard tools</summary>
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void refreshOwnerDashboardData();
+                  }}
+                  className="rounded-md border border-[#E5E0D8] bg-white px-3 py-2 text-xs font-medium text-[#7A7060] transition hover:bg-[#FAF7F2]"
+                >
+                  Refresh now
+                </button>
+              </div>
+            </details>
           </div>
         ) : null}
       </header>
@@ -2296,103 +2354,168 @@ export default function HomePage() {
         <>
       {ownerActiveTab === "overview" ? (
         <>
-          <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:hidden">
-            <h2 className="text-base font-semibold text-slate-900">What needs attention today</h2>
+          <section className="space-y-6">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <button
+                type="button"
+                onClick={() => {
+                  updateOwnerTab("jobs");
+                  setOwnerActiveQueue("future_all");
+                }}
+                className="rounded-xl border border-[#E5E0D8] border-l-[3px] border-l-[#1A6B60] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2]"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#7A7060]">Today&apos;s jobs</p>
+                <p className="mt-2 text-[32px] leading-none font-semibold text-[#1A1208]">{todayJobs.length}</p>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                updateOwnerTab("jobs");
-                setOwnerActiveQueue("future_all");
-              }}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
-            >
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Today&apos;s jobs / turnovers</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{todayJobs.length}</p>
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  updateOwnerTab("jobs");
+                  setOwnerActiveQueue("future_needs_assignment");
+                }}
+                className={`rounded-xl border border-[#E5E0D8] border-l-[3px] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2] ${
+                  futureNeedsAssignment > 0 ? "border-l-[#D97706]" : "border-l-[#1A6B60]"
+                }`}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#7A7060]">Needs assignment</p>
+                <p className="mt-2 text-[32px] leading-none font-semibold text-[#1A1208]">{futureNeedsAssignment}</p>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                updateOwnerTab("jobs");
-                setOwnerActiveQueue("issues_all");
-              }}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
-            >
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Urgent issues</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{jobsWithIssues.length}</p>
-              {jobsWithIssues.length === 0 ? <p className="mt-1 text-xs text-slate-600">All clear</p> : null}
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  updateOwnerTab("jobs");
+                  setOwnerActiveQueue("issues_all");
+                }}
+                className={`rounded-xl border border-[#E5E0D8] border-l-[3px] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2] ${
+                  jobsWithIssues.length > 0 ? "border-l-red-600" : "border-l-[#1A6B60]"
+                }`}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#7A7060]">Urgent issues</p>
+                <p className="mt-2 text-[32px] leading-none font-semibold text-[#1A1208]">{jobsWithIssues.length}</p>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                updateOwnerTab("jobs");
-                setOwnerActiveQueue("future_needs_assignment");
-              }}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
-            >
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Needs provider assignment</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{futureNeedsAssignment}</p>
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  updateOwnerTab("jobs");
+                  setOwnerActiveQueue("future_all");
+                }}
+                className="rounded-xl border border-[#E5E0D8] border-l-[3px] border-l-[#1A6B60] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2]"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#7A7060]">Upcoming jobs</p>
+                <p className="mt-2 text-[32px] leading-none font-semibold text-[#1A1208]">{futureJobsInRange.length}</p>
+              </button>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                updateOwnerTab("jobs");
-                setOwnerActiveQueue("future_all");
-              }}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
-            >
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Upcoming jobs</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{futureJobsInRange.length}</p>
-            </button>
+            {nextCheckoutJob ? (
+              <section className="rounded-xl border border-[#13293D] bg-[#0D1B2A] p-5 shadow-[0_10px_20px_rgba(13,27,42,0.18)]">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#B8860B]">Next checkout</p>
+                <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+                  <div className="space-y-1">
+                    <h3 className="text-xl font-semibold text-[#FAF7F2]">{selectedProperty?.name || "Selected property"}</h3>
+                    <p className="text-sm text-[#E9DFCF]">
+                      {nextCheckoutDate}
+                      {nextCheckoutTime ? ` at ${nextCheckoutTime}` : ""}
+                    </p>
+                    <p className="text-sm text-[#E9DFCF]">
+                      Provider: <span className="font-medium text-[#FAF7F2]">{nextCheckoutProviderLabel}</span>
+                    </p>
+                  </div>
 
-            <button
-              type="button"
-              onClick={() => updateOwnerTab("properties")}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
-            >
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Properties summary</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{properties.length}</p>
-              {properties.length === 0 ? (
-                <p className="mt-1 text-xs text-slate-600">Add your first property to start scheduling services.</p>
-              ) : null}
-            </button>
+                  {nextCheckoutNeedsAssignment ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateOwnerTab("jobs");
+                        setOwnerActiveQueue("future_needs_assignment");
+                      }}
+                      className="min-h-11 rounded-md bg-[#B8860B] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
+                    >
+                      Assign Now
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+            ) : (
+              <section className="lv-empty-state">
+                <h3 className="lv-empty-state-title">Next checkout</h3>
+                <p className="mt-1">No upcoming checkout jobs yet. Add a property calendar or create a new job to get started.</p>
+              </section>
+            )}
 
-            <details className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <summary className="cursor-pointer text-sm font-medium text-slate-700">Notifications</summary>
-              <div className="mt-2">
-                <NotificationPanel
-                  title="Owner notifications"
-                  notifications={ownerNotifications}
-                  loading={loadingOwnerNotifications}
-                  error={ownerNotificationsError}
-                  onRetry={() => {
-                    void loadOwnerNotifications();
+            <section className="space-y-3">
+              <h3 className="text-lg font-semibold text-[#1A1208]">Quick Actions</h3>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateOwnerTab("jobs");
+                    setAdHocJobFocusToken((previous) => previous + 1);
                   }}
-                  onMarkRead={handleMarkOwnerNotificationRead}
-                  onMarkAllRead={handleMarkAllOwnerNotificationsRead}
-                  onNotificationClick={handleOwnerNotificationClick}
-                />
-              </div>
-            </details>
-          </section>
+                  className="flex min-h-24 items-center gap-3 rounded-xl border border-[#E5E0D8] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2]"
+                >
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#0D1B2A] text-sm font-semibold text-white">NJ</span>
+                  <span>
+                    <span className="block text-base font-semibold text-[#1A1208]">Create Job</span>
+                    <span className="block text-sm text-[#7A7060]">Create a cleaning or turnover task</span>
+                  </span>
+                </button>
 
-          <div className="hidden md:block">
-            <NotificationPanel
-              title="Owner notifications"
-              notifications={ownerNotifications}
-              loading={loadingOwnerNotifications}
-              error={ownerNotificationsError}
-              onRetry={() => {
-                void loadOwnerNotifications();
-              }}
-              onMarkRead={handleMarkOwnerNotificationRead}
-              onMarkAllRead={handleMarkAllOwnerNotificationsRead}
-              onNotificationClick={handleOwnerNotificationClick}
-            />
-          </div>
+                <button
+                  type="button"
+                  onClick={() => updateOwnerTab("properties")}
+                  className="flex min-h-24 items-center gap-3 rounded-xl border border-[#E5E0D8] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2]"
+                >
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#1A6B60] text-sm font-semibold text-white">AP</span>
+                  <span>
+                    <span className="block text-base font-semibold text-[#1A1208]">Add Property</span>
+                    <span className="block text-sm text-[#7A7060]">Save a new listing and calendar</span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateOwnerTab("providers")}
+                  className="flex min-h-24 items-center gap-3 rounded-xl border border-[#E5E0D8] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2]"
+                >
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#D97706] text-sm font-semibold text-white">PR</span>
+                  <span>
+                    <span className="block text-base font-semibold text-[#1A1208]">Add Provider</span>
+                    <span className="block text-sm text-[#7A7060]">Invite or register a service provider</span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateOwnerTab("calendar")}
+                  className="flex min-h-24 items-center gap-3 rounded-xl border border-[#E5E0D8] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2]"
+                >
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#0D1B2A] text-sm font-semibold text-white">CL</span>
+                  <span>
+                    <span className="block text-base font-semibold text-[#1A1208]">Calendar</span>
+                    <span className="block text-sm text-[#7A7060]">View upcoming scheduled jobs</span>
+                  </span>
+                </button>
+              </div>
+            </section>
+
+            <div>
+              <NotificationPanel
+                title="Owner notifications"
+                notifications={ownerNotifications}
+                loading={loadingOwnerNotifications}
+                error={ownerNotificationsError}
+                onRetry={() => {
+                  void loadOwnerNotifications();
+                }}
+                onMarkRead={handleMarkOwnerNotificationRead}
+                onMarkAllRead={handleMarkAllOwnerNotificationsRead}
+                onNotificationClick={handleOwnerNotificationClick}
+              />
+            </div>
+          </section>
         </>
       ) : null}
 
@@ -2894,7 +3017,7 @@ export default function HomePage() {
 
         {ownerActiveTab === "overview" || ownerActiveTab === "jobs" ? (
           <section className="space-y-3">
-          {ownerActiveTab === "overview" ? (
+          {ownerActiveTab === "jobs" ? (
             <section className="hidden space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm md:block">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-semibold text-slate-900">Job summary</h4>
@@ -3104,7 +3227,7 @@ export default function HomePage() {
             </section>
           ) : null}
 
-          {ownerActiveTab === "overview" ? (
+          {ownerActiveTab === "jobs" ? (
             <section className="hidden space-y-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm md:block">
             <h4 className="text-sm font-semibold text-slate-900">Issue summary</h4>
 
@@ -3167,7 +3290,7 @@ export default function HomePage() {
             </section>
           ) : null}
 
-          {ownerActiveTab === "overview" ? (
+          {ownerActiveTab === "jobs" ? (
             <section
             className={`hidden space-y-3 rounded-xl p-4 shadow-sm md:block ${
               ownerActiveQueue === "notification_job"

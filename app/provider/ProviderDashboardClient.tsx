@@ -1152,8 +1152,8 @@ export default function ProviderPage() {
         {hasProviderDashboard ? (
           <div className="flex flex-wrap gap-2">
             {([
-              { id: "overview", label: "Overview" },
-              { id: "queue", label: "Job queue" },
+              { id: "overview", label: "Dashboard" },
+              { id: "queue", label: "Jobs" },
               { id: "calendar", label: "Calendar" },
               { id: "list", label: "List" },
             ] as const).map((tab) => (
@@ -1163,8 +1163,8 @@ export default function ProviderPage() {
                 onClick={() => updateProviderTab(tab.id)}
                 className={`min-h-11 rounded-md px-4 py-2.5 text-sm font-medium transition ${
                   providerActiveTab === tab.id
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    ? "rounded-full bg-[#B8860B] text-[#0D1B2A]"
+                    : "rounded-full border border-[#E5E0D8] bg-white text-[#7A7060] hover:bg-[#FAF7F2] hover:text-[#0D1B2A]"
                 }`}
               >
                 {tab.label}

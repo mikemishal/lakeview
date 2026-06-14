@@ -11,8 +11,8 @@ type RoleSwitcherProps = {
 
 function buttonClass(active: boolean): string {
   return active
-    ? "rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white"
-    : "rounded-md bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100";
+    ? "rounded-full bg-[#B8860B] px-3 py-1.5 text-sm font-semibold text-[#0D1B2A]"
+    : "rounded-full bg-white px-3 py-1.5 text-sm font-medium text-[#7A7060] transition hover:bg-[#FAF7F2] hover:text-[#0D1B2A]";
 }
 
 export default function RoleSwitcher({
@@ -28,7 +28,7 @@ export default function RoleSwitcher({
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1">
+    <div className="flex items-center gap-2 rounded-full border border-[#E5E0D8] bg-[#FAF7F2] p-1">
       {showOwner ? (
         <Link href="/owner" className={buttonClass(currentSection === "owner")}>Owner</Link>
       ) : null}
