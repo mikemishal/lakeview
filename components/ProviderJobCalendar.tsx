@@ -262,48 +262,50 @@ function JobCard({
   const issueLabels = getIssueLabels(job);
   const dueToday = toDateOnly(job.scheduledDate) === todayDateOnly;
   const isManualJob = job.jobSource === "manual";
+  const statusColor = getStatusBadgeColor(job.status);
+  const leftBorderColor = getStatusLeftBorderColor(job.status);
 
   return (
-    <article className={`rounded-lg border border-slate-200 bg-white ${compact ? "p-3" : "p-4"}`}>
+    <article className={`rounded-[12px] border-l-4 border border-[#E5E0D8] bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)] ${leftBorderColor} ${compact ? "p-3" : "p-4"}`}>
       <div className="mb-1 flex items-start justify-between gap-2">
-        <p className={`font-semibold text-slate-900 ${compact ? "text-xs" : "text-sm"}`}>{job.title}</p>
-        <span className={`rounded-full bg-slate-100 px-2.5 py-1 font-medium uppercase tracking-wide text-slate-700 ${compact ? "text-[10px]" : "text-xs"}`}>
+        <p className={`font-semibold text-[#0D1B2A] ${compact ? "text-xs" : "text-sm"}`}>{job.title}</p>
+        <span className={`rounded-full ${statusColor.bg} ${statusColor.text} px-2.5 py-1 font-medium text-xs`}>
           {formatStatusLabel(job.status)}
         </span>
       </div>
 
       <div className="mb-1 flex flex-wrap gap-1.5">
-        <span className={`inline-flex rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800 ${compact ? "text-[10px]" : "text-xs"}`}>
+        <span className={`inline-flex rounded-full bg-[#B8860B]/10 px-2 py-0.5 font-medium text-[#B8860B] ${compact ? "text-[10px]" : "text-xs"}`}>
           {compact ? formatRequestedServiceType(job.requestedServiceType) : formatRequestedServiceType(job.requestedServiceType)}
         </span>
-        <span className={`inline-flex rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700 ${compact ? "text-[10px]" : "text-xs"}`}>
+        <span className={`inline-flex rounded-full bg-[#7A7060]/10 px-2 py-0.5 font-medium text-[#7A7060] ${compact ? "text-[10px]" : "text-xs"}`}>
           {formatSourcePlatformLabel(job.sourcePlatform)}
         </span>
         {isManualJob ? (
-          <span className={`inline-flex rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700 ${compact ? "text-[10px]" : "text-xs"}`}>
+          <span className={`inline-flex rounded-full bg-[#1A6B60]/10 px-2 py-0.5 font-medium text-[#1A6B60] ${compact ? "text-[10px]" : "text-xs"}`}>
             Manual job
           </span>
         ) : null}
         {job.ownerSelfAssigned ? (
-          <span className={`inline-flex rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700 ${compact ? "text-[10px]" : "text-xs"}`}>
+          <span className={`inline-flex rounded-full bg-[#1A6B60]/10 px-2 py-0.5 font-medium text-[#1A6B60] ${compact ? "text-[10px]" : "text-xs"}`}>
             Owner assigned
           </span>
         ) : null}
         {(job.priority === "high" || job.priority === "urgent") ? (
-          <span className={`inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 ${compact ? "text-[10px]" : "text-xs"}`}>
+          <span className={`inline-flex rounded-full bg-[#D97706]/10 px-2 py-0.5 font-medium text-[#D97706] ${compact ? "text-[10px]" : "text-xs"}`}>
             {formatPriority(job.priority)} priority
           </span>
         ) : null}
         {dueToday ? (
-          <span className={`inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 ${compact ? "text-[10px]" : "text-xs"}`}>
+          <span className={`inline-flex rounded-full bg-[#D97706]/10 px-2 py-0.5 font-medium text-[#D97706] ${compact ? "text-[10px]" : "text-xs"}`}>
             Due today
           </span>
         ) : null}
       </div>
 
-      <div className={`space-y-0.5 text-slate-700 ${compact ? "text-xs" : "text-sm"}`}>
+      <div className={`space-y-0.5 text-[#7A7060] ${compact ? "text-xs" : "text-sm"}`}>
         <p>
-          <span className="font-medium text-slate-900">{job.property.name}</span>
+          <span className="font-medium text-[#0D1B2A]">{job.property.name}</span>
         </p>
         {!compact ? <p>{formatDateLabel(job.scheduledDate)}</p> : null}
         <p>Service: {formatRequestedServiceType(job.requestedServiceType)}</p>
@@ -325,7 +327,7 @@ function JobCard({
         <button
           type="button"
           onClick={onDetails}
-          className={`min-h-10 rounded-md border border-slate-300 bg-white px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-50 ${compact ? "text-xs" : "text-sm"}`}
+          className={`min-h-10 rounded-md border border-[#E5E0D8] bg-white px-3 py-2 font-medium text-[#7A7060] transition hover:bg-[#FAF7F2] hover:text-[#0D1B2A] ${compact ? "text-xs" : "text-sm"}`}
         >
           View details
         </button>
@@ -333,14 +335,14 @@ function JobCard({
 
       {issueLabels.length > 0 ? (
         <div className="mt-2 space-y-1">
-          <span className={`inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 ${compact ? "text-[10px]" : "text-xs"}`}>
+          <span className={`inline-flex rounded-full bg-[#D97706]/10 px-2 py-0.5 font-medium text-[#D97706] ${compact ? "text-[10px]" : "text-xs"}`}>
             Issues flagged
           </span>
           <div className="flex flex-wrap gap-1">
             {issueLabels.map((label) => (
               <span
                 key={label}
-                className={`rounded-full bg-slate-200 px-2 py-0.5 font-medium text-slate-700 ${compact ? "text-[10px]" : "text-xs"}`}
+                className={`rounded-full bg-[#E5E0D8] px-2 py-0.5 font-medium text-[#7A7060] ${compact ? "text-[10px]" : "text-xs"}`}
               >
                 {label}
               </span>
@@ -350,6 +352,38 @@ function JobCard({
       ) : null}
     </article>
   );
+}
+
+function getStatusLeftBorderColor(status: string): string {
+  // Teal for assigned/accepted/completed/synced
+  if (["assigned", "accepted", "completed", "synced"].includes(status)) {
+    return "border-l-[#1A6B60]";
+  }
+  // Amber for unassigned/needs assignment/pending
+  if (["unassigned", "needs_assignment", "pending_acceptance"].includes(status)) {
+    return "border-l-[#D97706]";
+  }
+  // Red for error/canceled/issue states
+  if (["cancelled", "issue_reported", "declined"].includes(status)) {
+    return "border-l-[#EF4444]";
+  }
+  return "border-l-[#D97706]"; // Default to amber
+}
+
+function getStatusBadgeColor(status: string): { bg: string; text: string } {
+  if (["needs_assignment", "unassigned", "pending_acceptance"].includes(status)) {
+    return { bg: "bg-[#D97706]", text: "text-white" };
+  }
+  if (["assigned", "accepted", "in_progress"].includes(status)) {
+    return { bg: "bg-[#1A6B60]", text: "text-white" };
+  }
+  if (["completed", "synced"].includes(status)) {
+    return { bg: "bg-[#1A6B60]", text: "text-white" };
+  }
+  if (["cancelled", "declined", "issue_reported"].includes(status)) {
+    return { bg: "bg-[#EF4444]", text: "text-white" };
+  }
+  return { bg: "bg-[#7A7060]", text: "text-white" };
 }
 
 export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) {
@@ -419,21 +453,24 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
   const selectedDayJobs = getJobsForDate(dateFromDateOnly(selectedDateOnly));
 
   return (
-    <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="space-y-4 rounded-[12px] border border-[#E5E0D8] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
       <header className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-900">Job calendar</h2>
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold text-[#0D1B2A]">Calendar</h2>
+            <p className="text-sm text-[#7A7060]">Turnovers, cleanings, and scheduled work</p>
+          </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex flex-wrap rounded-md border border-slate-300 bg-white p-1">
+            <div className="flex flex-wrap rounded-full border border-[#E5E0D8] bg-[#FAF7F2] p-1">
               <button
                 type="button"
                 onClick={() => {
                   setView("today");
                   setSelectedDateOnly(toDateOnly(currentDate));
                 }}
-                className={`min-h-11 rounded px-4 py-2.5 text-sm font-medium transition ${
-                  view === "today" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"
+                className={`min-h-9 rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                  view === "today" ? "bg-[#0D1B2A] text-[#FAF7F2]" : "text-[#7A7060] hover:text-[#0D1B2A]"
                 }`}
               >
                 Today
@@ -441,8 +478,8 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
               <button
                 type="button"
                 onClick={() => setView("week")}
-                className={`min-h-11 rounded px-4 py-2.5 text-sm font-medium transition ${
-                  view === "week" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"
+                className={`min-h-9 rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                  view === "week" ? "bg-[#0D1B2A] text-[#FAF7F2]" : "text-[#7A7060] hover:text-[#0D1B2A]"
                 }`}
               >
                 Week
@@ -450,46 +487,46 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
               <button
                 type="button"
                 onClick={() => setView("month")}
-                className={`min-h-11 rounded px-4 py-2.5 text-sm font-medium transition ${
-                  view === "month" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"
+                className={`min-h-9 rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                  view === "month" ? "bg-[#0D1B2A] text-[#FAF7F2]" : "text-[#7A7060] hover:text-[#0D1B2A]"
                 }`}
               >
                 Month
               </button>
             </div>
 
-            <div className="flex flex-wrap rounded-md border border-slate-300 bg-white p-1">
+            <div className="flex flex-wrap rounded-full border border-[#E5E0D8] bg-white p-1">
               <button
                 type="button"
                 onClick={navigatePrevious}
-                className="min-h-11 rounded px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                className="min-h-9 rounded-full px-3 py-1.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2]"
               >
-                Previous
+                ←
               </button>
               <button
                 type="button"
                 onClick={() => setCurrentDate(new Date())}
-                className="min-h-11 rounded px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                className="min-h-9 rounded-full px-3 py-1.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2]"
               >
                 Today
               </button>
               <button
                 type="button"
                 onClick={navigateNext}
-                className="min-h-11 rounded px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                className="min-h-9 rounded-full px-3 py-1.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2]"
               >
-                Next
+                →
               </button>
             </div>
           </div>
         </div>
 
-        <p className="text-sm font-medium text-slate-700">{rangeLabel}</p>
+        <p className="text-sm font-medium text-[#0D1B2A]">{rangeLabel}</p>
       </header>
 
       {view === "today" ? (
-        <section className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <h3 className="mb-3 text-sm font-semibold text-slate-900">{formatDateLabel(normalizedCurrentDate)}</h3>
+        <section className="rounded-[12px] border border-[#E5E0D8] bg-white p-3">
+          <h3 className="mb-3 text-sm font-semibold text-[#0D1B2A]">{formatDateLabel(normalizedCurrentDate)}</h3>
           <div className="space-y-2">
             {getJobsForDate(normalizedCurrentDate).length > 0 ? (
               getJobsForDate(normalizedCurrentDate).map((job) => (
@@ -501,7 +538,10 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
                 />
               ))
             ) : (
-              <p className="text-sm text-slate-600">No jobs scheduled for this day.</p>
+              <div className="rounded-[12px] border-2 border-dashed border-[#E5E0D8] bg-white p-6 text-center">
+                <p className="text-sm font-medium text-[#0D1B2A]">No jobs scheduled</p>
+                <p className="mt-1 text-sm text-[#7A7060]">This day is clear. New turnovers and assigned work will appear here.</p>
+              </div>
             )}
           </div>
         </section>
@@ -519,21 +559,21 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
                   key={dateOnly}
                   type="button"
                   onClick={() => setSelectedDateOnly(dateOnly)}
-                  className={`min-h-20 rounded-lg border p-3 text-left transition ${
+                  className={`min-h-20 rounded-[12px] border p-3 text-left transition ${
                     isSelected
-                      ? "border-slate-400 bg-slate-100"
-                      : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+                      ? "border-[#0D1B2A] bg-[#0D1B2A]/5"
+                      : "border-[#E5E0D8] bg-white hover:bg-[#FAF7F2]"
                   }`}
                 >
-                  <p className="text-xs font-semibold text-slate-700">{weekDayShortFormatter.format(date)}</p>
-                  <p className="text-base font-semibold text-slate-900">{date.getUTCDate()}</p>
+                  <p className="text-xs font-semibold text-[#7A7060]">{weekDayShortFormatter.format(date)}</p>
+                  <p className="text-base font-semibold text-[#0D1B2A]">{date.getUTCDate()}</p>
                   <div className="mt-1 flex items-center gap-1">
                     {dayJobs.length > 0 ? (
-                      <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">
+                      <span className="rounded-full bg-[#0D1B2A] px-2 py-0.5 text-xs font-semibold text-white">
                         {dayJobs.length}
                       </span>
                     ) : (
-                      <span className="text-xs text-slate-400">No jobs</span>
+                      <span className="text-xs text-[#B8860B]">No jobs</span>
                     )}
                   </div>
                 </button>
@@ -541,8 +581,8 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
             })}
           </div>
 
-          <section className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <h3 className="mb-2 text-sm font-semibold text-slate-900">
+          <section className="rounded-[12px] border border-[#E5E0D8] bg-white p-3">
+            <h3 className="mb-2 text-sm font-semibold text-[#0D1B2A]">
               {formatDateLabel(`${selectedDateOnly}T00:00:00.000Z`)}
             </h3>
             {selectedDayJobs.length > 0 ? (
@@ -557,7 +597,10 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-slate-600">No jobs scheduled for this day.</p>
+              <div className="rounded-[12px] border-2 border-dashed border-[#E5E0D8] bg-white p-6 text-center">
+                <p className="text-sm font-medium text-[#0D1B2A]">No jobs scheduled</p>
+                <p className="mt-1 text-sm text-[#7A7060]">This day is clear. New turnovers and assigned work will appear here.</p>
+              </div>
             )}
           </section>
         </div>
@@ -570,7 +613,7 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
               {Array.from({ length: 7 }, (_, index) => (
                 <p
                   key={index}
-                  className="px-2 py-1 text-center text-xs font-medium uppercase tracking-wide text-slate-500"
+                  className="px-2 py-1 text-center text-xs font-medium uppercase tracking-wide text-[#7A7060]"
                 >
                   {weekDayShortFormatter.format(addDays(startOfWeek(normalizedCurrentDate), index))}
                 </p>
@@ -589,17 +632,17 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
                     key={dateOnly}
                     type="button"
                     onClick={() => setSelectedDateOnly(dateOnly)}
-                    className={`min-h-24 rounded-lg border p-3 text-left ${
+                    className={`min-h-24 rounded-[12px] border p-3 text-left transition ${
                       isSelected
-                        ? "border-slate-400 bg-slate-100"
+                        ? "border-[#0D1B2A] bg-[#0D1B2A]/5"
                         : inCurrentMonth
-                        ? "border-slate-200 bg-slate-50"
-                        : "border-slate-100 bg-slate-100/70"
+                        ? "border-[#E5E0D8] bg-white hover:bg-[#FAF7F2]"
+                        : "border-[#E5E0D8] bg-[#FAF7F2]/50"
                     }`}
                   >
                     <p
                       className={`mb-2 text-sm font-semibold ${
-                        inCurrentMonth ? "text-slate-800" : "text-slate-500"
+                        inCurrentMonth ? "text-[#0D1B2A]" : "text-[#B8860B]"
                       }`}
                     >
                       {date.getUTCDate()}
@@ -609,14 +652,14 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
                       {dayJobs.length > 0 ? (
                         <>
                           {dayJobs.slice(0, 3).map((job) => (
-                            <span key={job.id} className="h-2 w-2 rounded-full bg-slate-700" />
+                            <span key={job.id} className="h-2 w-2 rounded-full bg-[#0D1B2A]" />
                           ))}
                           {dayJobs.length > 3 ? (
-                            <span className="text-xs font-medium text-slate-600">+{dayJobs.length - 3}</span>
+                            <span className="text-xs font-medium text-[#7A7060]">+{dayJobs.length - 3}</span>
                           ) : null}
                         </>
                       ) : (
-                        <p className="text-xs text-slate-400">No jobs</p>
+                        <p className="text-xs text-[#B8860B]">No jobs</p>
                       )}
                     </div>
                   </button>
@@ -625,8 +668,8 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
             </div>
           </div>
 
-          <section className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <h3 className="mb-2 text-sm font-semibold text-slate-900">
+          <section className="rounded-[12px] border border-[#E5E0D8] bg-white p-3">
+            <h3 className="mb-2 text-sm font-semibold text-[#0D1B2A]">
               {formatDateLabel(`${selectedDateOnly}T00:00:00.000Z`)}
             </h3>
             {selectedDayJobs.length > 0 ? (
@@ -641,7 +684,10 @@ export default function ProviderJobCalendar({ jobs }: ProviderJobCalendarProps) 
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-slate-600">No jobs scheduled for this day.</p>
+              <div className="rounded-[12px] border-2 border-dashed border-[#E5E0D8] bg-white p-6 text-center">
+                <p className="text-sm font-medium text-[#0D1B2A]">No jobs scheduled</p>
+                <p className="mt-1 text-sm text-[#7A7060]">This day is clear. New turnovers and assigned work will appear here.</p>
+              </div>
             )}
           </section>
         </div>

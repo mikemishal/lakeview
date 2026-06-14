@@ -3639,11 +3639,11 @@ export default function HomePage() {
         ) : null}
 
         {ownerActiveTab === "calendar" ? (
-          <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="space-y-3 rounded-[14px] border border-[#E5E0D8] bg-white p-6 shadow-[0_10px_24px_rgba(13,27,42,0.18)]">
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold text-slate-900">Cleaning calendar</h3>
-              <p className="text-sm text-slate-600">
-                Calendar view for the current job filters and selected property.
+              <h3 className="text-lg font-semibold text-[#0D1B2A]">Calendar</h3>
+              <p className="text-sm text-[#7A7060]">
+                Turnovers, cleanings, and scheduled work
               </p>
             </div>
             <ProviderJobCalendar jobs={ownerCalendarJobs} />
