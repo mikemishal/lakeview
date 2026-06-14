@@ -29,6 +29,17 @@ export default function AppHeader({
   showJobsLink = false,
   showProfilesLink = true,
 }: AppHeaderProps) {
+  const dashboardHref =
+    currentSection === "provider" && showProviderLink
+      ? "/provider?tab=overview"
+      : showOwnerLink
+      ? "/owner?tab=overview"
+      : showProviderLink
+      ? "/provider?tab=overview"
+      : "/";
+
+  const isOwnerContext = dashboardHref.startsWith("/owner");
+
   const roleLabel =
     roleContext === "both"
       ? "Both"
@@ -63,54 +74,49 @@ export default function AppHeader({
         />
 
         <nav className="hidden max-w-full flex-wrap items-center justify-end gap-2 md:flex">
-          {showOwnerLink ? (
-            <Link href="/owner?tab=overview" className={navClass(currentSection === "owner")}>
+          {showOwnerLink || showProviderLink ? (
+            <Link href={dashboardHref} className={navClass(currentSection === "owner" || currentSection === "provider")}>
               Dashboard
             </Link>
           ) : null}
-          {showProviderLink ? (
-            <Link href="/provider?tab=overview" className={navClass(currentSection === "provider")}>
-              Dashboard
-            </Link>
-          ) : null}
-          {showOwnerLink ? (
+          {isOwnerContext ? (
             <Link href="/owner?tab=calendar" className={navClass(false)}>
               Calendar
             </Link>
-          ) : !showOwnerLink && showProviderLink ? (
+          ) : showProviderLink ? (
             <Link href="/provider?tab=calendar" className={navClass(false)}>
               Calendar
             </Link>
           ) : null}
-          {showPropertiesLink ? (
+          {showPropertiesLink && isOwnerContext ? (
             <Link href="/owner?tab=properties" className={navClass(false)}>
               Properties
             </Link>
           ) : null}
-          {showOwnerLink ? (
+          {showOwnerLink && isOwnerContext ? (
             <Link href="/owner?tab=properties" className={navClass(false)}>
               Add Property
             </Link>
           ) : null}
           {showJobsLink ? (
             <Link
-              href={showOwnerLink ? "/owner?tab=jobs" : "/provider?tab=queue"}
+              href={isOwnerContext ? "/owner?tab=jobs" : "/provider?tab=queue"}
               className={navClass(false)}
             >
               Jobs
             </Link>
           ) : null}
-          {showOwnerLink ? (
+          {showOwnerLink && isOwnerContext ? (
             <Link href="/owner?tab=jobs" className={navClass(false)}>
               Create Job
             </Link>
           ) : null}
-          {showOwnerLink ? (
+          {showOwnerLink && isOwnerContext ? (
             <Link href="/owner?tab=providers" className={navClass(false)}>
               My Team
             </Link>
           ) : null}
-          {showOwnerLink ? (
+          {showOwnerLink && isOwnerContext ? (
             <Link href="/owner?tab=providers" className={navClass(false)}>
               Add Provider
             </Link>
