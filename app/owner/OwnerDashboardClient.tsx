@@ -705,11 +705,14 @@ export default function HomePage() {
   const restockJobs = restockIssueJobs;
   const damageJobs = damageIssueJobs;
   const ownerGreetingName = currentOwnerProfile?.name?.trim() ?? "";
-  const ownerGreeting = ownerGreetingName ? `Good morning, ${ownerGreetingName}` : "Good morning";
+  const ownerGreeting = ownerGreetingName ? `Good morning, ${ownerGreetingName}` : "Good morning, there";
   const todayLongDate = formatLongDateLabel(new Date());
   const nextCheckoutJob = futureJobsAll
     .filter((job) => job.status !== "cancelled" && job.status !== "completed")
     .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())[0];
+  const nextCheckoutPropertyName = nextCheckoutJob
+    ? properties.find((property) => property.id === nextCheckoutJob.propertyId)?.name || nextCheckoutJob.title
+    : "";
   const nextCheckoutDate = nextCheckoutJob ? formatLongDateLabel(nextCheckoutJob.scheduledDate) : "";
   const nextCheckoutTime = nextCheckoutJob ? formatTimeLabel(nextCheckoutJob.dueTime) : "";
   const nextCheckoutProviderLabel = nextCheckoutJob
@@ -2245,12 +2248,13 @@ export default function HomePage() {
       showPropertiesLink={Boolean(currentOwnerProfile && !inviteCodeBlocked)}
       showJobsLink={Boolean(currentOwnerProfile && !inviteCodeBlocked)}
     />
-    <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-8 pb-24 sm:px-6 lg:px-8">
+    <main className="mx-auto min-h-screen w-full max-w-5xl px-4 py-8 pb-24 sm:px-6 lg:px-8">
       <header className="mb-8 space-y-4">
-        <section className="overflow-hidden rounded-xl border border-[#13293D] bg-[#0D1B2A] p-6 shadow-[0_10px_24px_rgba(13,27,42,0.18)]">
+        <section className="overflow-hidden rounded-[14px] border border-[#E5E0D8] bg-[#0D1B2A] p-6 shadow-[0_10px_24px_rgba(13,27,42,0.18)]">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#B8860B]">Owner dashboard</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#FAF7F2] sm:text-4xl">{ownerGreeting}</h1>
           <p className="mt-2 text-sm text-[#E9DFCF]">{todayLongDate}</p>
+          <div className="mt-4 h-px w-20 bg-[#B8860B]/70" aria-hidden="true" />
           {currentOwnerProfile ? (
             <p className="mt-4 text-sm text-[#F5EBDD]">
               Signed in as{" "}
@@ -2355,6 +2359,11 @@ export default function HomePage() {
       {ownerActiveTab === "overview" ? (
         <>
           <section className="space-y-6">
+            <section className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#0D1B2A]">Today at a Glance</p>
+              <p className="text-sm text-[#7A7060]">A quick snapshot of today&apos;s owner operations.</p>
+            </section>
+
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <button
                 type="button"
@@ -2414,13 +2423,13 @@ export default function HomePage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#B8860B]">Next checkout</p>
                 <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
                   <div className="space-y-1">
-                    <h3 className="text-xl font-semibold text-[#FAF7F2]">{selectedProperty?.name || "Selected property"}</h3>
+                    <h3 className="text-xl font-semibold text-[#FAF7F2]">{nextCheckoutPropertyName}</h3>
                     <p className="text-sm text-[#E9DFCF]">
                       {nextCheckoutDate}
                       {nextCheckoutTime ? ` at ${nextCheckoutTime}` : ""}
                     </p>
                     <p className="text-sm text-[#E9DFCF]">
-                      Provider: <span className="font-medium text-[#FAF7F2]">{nextCheckoutProviderLabel}</span>
+                      Assignment: <span className="font-medium text-[#FAF7F2]">{nextCheckoutProviderLabel}</span>
                     </p>
                   </div>
 
@@ -2439,9 +2448,9 @@ export default function HomePage() {
                 </div>
               </section>
             ) : (
-              <section className="lv-empty-state">
-                <h3 className="lv-empty-state-title">Next checkout</h3>
-                <p className="mt-1">No upcoming checkout jobs yet. Add a property calendar or create a new job to get started.</p>
+              <section className="rounded-xl border border-[#E5E0D8] bg-white p-5 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                <h3 className="text-base font-semibold text-[#1A1208]">Next checkout</h3>
+                <p className="mt-1 text-sm text-[#7A7060]">No upcoming checkout jobs yet. Add a property calendar or create a new job to get started.</p>
               </section>
             )}
 
@@ -2458,7 +2467,7 @@ export default function HomePage() {
                 >
                   <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#0D1B2A] text-sm font-semibold text-white">NJ</span>
                   <span>
-                    <span className="block text-base font-semibold text-[#1A1208]">Create Job</span>
+                    <span className="block text-base font-semibold text-[#1A1208]">New Job</span>
                     <span className="block text-sm text-[#7A7060]">Create a cleaning or turnover task</span>
                   </span>
                 </button>
