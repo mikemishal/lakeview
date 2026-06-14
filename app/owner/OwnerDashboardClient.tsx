@@ -9,7 +9,7 @@ import CalendarEventCard from "@/components/CalendarEventCard";
 import AdHocJobForm, { type AdHocJobFormPayload } from "@/components/AdHocJobForm";
 import CleaningJobCard, { type CleaningJobItem as BaseCleaningJobItem } from "@/components/CleaningJobCard";
 import CleaningJobCalendar from "@/components/CleaningJobCalendar";
-import CleanerSchedule, { type CleanerScheduleJob } from "@/components/CleanerSchedule";
+import { type CleanerScheduleJob } from "@/components/CleanerSchedule";
 import ProviderJobCalendar from "@/components/ProviderJobCalendar";
 import ServiceProviderForm from "@/components/ServiceProviderForm";
 import EmptyState from "@/components/EmptyState";
@@ -174,10 +174,6 @@ type ServiceProvidersResponse = {
 
 type SaveServiceProviderResponse = {
   serviceProvider: ServiceProvider;
-};
-
-type ServiceProviderCleaningJobsResponse = {
-  cleaningJobs: CleanerScheduleJob[];
 };
 
 type NotificationsResponse = {
@@ -538,6 +534,7 @@ export default function HomePage() {
   const [futureSummaryRange] = useState<7 | 30 | 90>(30);
   const [showJobSummary, setShowJobSummary] = useState(false);
   const [showIssuesSummary, setShowIssuesSummary] = useState(false);
+  const [showJobs, setShowJobs] = useState(false);
   const [cleaningJobStatusFilter, setCleaningJobStatusFilter] = useState("all");
   const [cleaningJobProviderFilter, setCleaningJobProviderFilter] = useState("all");
   const [showManualSync, setShowManualSync] = useState(false);
@@ -566,11 +563,6 @@ export default function HomePage() {
 
   const [updatingProviderJobId, setUpdatingProviderJobId] = useState("");
   const [providerAssignmentError, setProviderAssignmentError] = useState("");
-  const [selectedCleanerScheduleProviderId, setSelectedCleanerScheduleProviderId] =
-    useState("");
-  const [cleanerScheduleJobs, setCleanerScheduleJobs] = useState<CleanerScheduleJob[]>([]);
-  const [loadingCleanerSchedule, setLoadingCleanerSchedule] = useState(false);
-  const [cleanerScheduleError, setCleanerScheduleError] = useState("");
   const [updatingNotesJobId, setUpdatingNotesJobId] = useState("");
   const [cleaningJobNotesError, setCleaningJobNotesError] = useState("");
   const [updatingIssueFlagsJobId, setUpdatingIssueFlagsJobId] = useState("");
@@ -588,9 +580,8 @@ export default function HomePage() {
   const [legacyPropertiesClaimError, setLegacyPropertiesClaimError] = useState("");
   const [focusedOwnerNotificationJob, setFocusedOwnerNotificationJob] =
     useState<CleaningJobItem | null>(null);
-  const [loadingFocusedOwnerNotificationJob, setLoadingFocusedOwnerNotificationJob] =
-    useState(false);
-  const [focusedOwnerNotificationJobError, setFocusedOwnerNotificationJobError] = useState("");
+  const [, setLoadingFocusedOwnerNotificationJob] = useState(false);
+  const [, setFocusedOwnerNotificationJobError] = useState("");
   const ownerRefreshInFlightRef = useRef(false);
   const adHocJobFormRef = useRef<HTMLDivElement | null>(null);
   const [adHocJobFocusToken, setAdHocJobFocusToken] = useState(0);
@@ -729,175 +720,6 @@ export default function HomePage() {
   const nextCheckoutNeedsAssignment = Boolean(
     nextCheckoutJob && !nextCheckoutJob.assignedProviderId && !nextCheckoutJob.ownerSelfAssigned
   );
-  const ownerNotificationJobQueue = focusedOwnerNotificationJob
-    ? [focusedOwnerNotificationJob]
-    : [];
-
-  const ownerQueueJobs = (() => {
-    if (ownerActiveQueue === "notification_job") {
-      return ownerNotificationJobQueue;
-    }
-    if (ownerActiveQueue === "future_all") {
-      return futureJobsInRange;
-    }
-    if (ownerActiveQueue === "future_needs_assignment") {
-      return futureNeedsAssignmentJobs;
-    }
-    if (ownerActiveQueue === "future_assigned") {
-      return futureAssignedJobs;
-    }
-    if (ownerActiveQueue === "future_declined") {
-      return futureDeclinedJobs;
-    }
-    if (ownerActiveQueue === "future_accepted") {
-      return futureAcceptedJobs;
-    }
-    if (ownerActiveQueue === "future_in_progress") {
-      return futureInProgressJobs;
-    }
-    if (ownerActiveQueue === "future_cancelled") {
-      return futureCancelledJobs;
-    }
-    if (ownerActiveQueue === "future_issues") {
-      return futureIssueJobs;
-    }
-    if (ownerActiveQueue === "past_all") {
-      return pastJobs;
-    }
-    if (ownerActiveQueue === "past_completed") {
-      return pastCompletedJobs;
-    }
-    if (ownerActiveQueue === "past_not_completed") {
-      return pastNotCompletedJobs;
-    }
-    if (ownerActiveQueue === "past_issues") {
-      return pastIssueJobs;
-    }
-    if (ownerActiveQueue === "issues_all") {
-      return allIssueJobs;
-    }
-    if (ownerActiveQueue === "issues_maintenance") {
-      return maintenanceIssueJobs;
-    }
-    if (ownerActiveQueue === "issues_restock") {
-      return restockIssueJobs;
-    }
-    if (ownerActiveQueue === "issues_damage") {
-      return damageIssueJobs;
-    }
-
-    return [] as CleaningJobItem[];
-  })();
-
-  const ownerQueueMeta = (() => {
-    if (ownerActiveQueue === "notification_job") {
-      return {
-        title: "Notification job",
-        description: "This job was opened from a notification.",
-      };
-    }
-    if (ownerActiveQueue === "future_all") {
-      return {
-        title: "Future jobs",
-        description: `All jobs scheduled in the next ${futureSummaryRange} days.`,
-      };
-    }
-    if (ownerActiveQueue === "future_needs_assignment") {
-      return {
-        title: "Needs provider",
-        description: "Future jobs that still need a provider.",
-      };
-    }
-    if (ownerActiveQueue === "future_assigned") {
-      return {
-        title: "Assigned jobs",
-        description: "Future jobs assigned to a cleaner and awaiting acceptance.",
-      };
-    }
-    if (ownerActiveQueue === "future_declined") {
-      return {
-        title: "Declined jobs",
-        description: "Future jobs declined by providers and needing reassignment.",
-      };
-    }
-    if (ownerActiveQueue === "future_accepted") {
-      return {
-        title: "Accepted jobs",
-        description: "Future jobs accepted by assigned cleaners.",
-      };
-    }
-    if (ownerActiveQueue === "future_in_progress") {
-      return {
-        title: "In progress jobs",
-        description: "Future-window jobs currently marked in progress.",
-      };
-    }
-    if (ownerActiveQueue === "future_cancelled") {
-      return {
-        title: "Cancelled jobs",
-        description: "Future jobs cancelled by owner/admin.",
-      };
-    }
-    if (ownerActiveQueue === "future_issues") {
-      return {
-        title: "Future jobs with issues",
-        description: "Upcoming jobs that have maintenance, restock, or damage flags.",
-      };
-    }
-    if (ownerActiveQueue === "past_all") {
-      return {
-        title: "Past jobs",
-        description: "All jobs scheduled before today.",
-      };
-    }
-    if (ownerActiveQueue === "past_completed") {
-      return {
-        title: "Completed past jobs",
-        description: "Past jobs marked completed.",
-      };
-    }
-    if (ownerActiveQueue === "past_not_completed") {
-      return {
-        title: "Not completed past jobs",
-        description: "Past jobs still not completed and needing follow-up.",
-      };
-    }
-    if (ownerActiveQueue === "past_issues") {
-      return {
-        title: "Past jobs with issues",
-        description: "Past jobs where issues were flagged.",
-      };
-    }
-    if (ownerActiveQueue === "issues_all") {
-      return {
-        title: "All issue jobs",
-        description: "All jobs with any maintenance, restock, or damage issue.",
-      };
-    }
-    if (ownerActiveQueue === "issues_maintenance") {
-      return {
-        title: "Maintenance issues",
-        description: "Jobs currently flagged with maintenance issues.",
-      };
-    }
-    if (ownerActiveQueue === "issues_restock") {
-      return {
-        title: "Restock issues",
-        description: "Jobs currently flagged with restock needs.",
-      };
-    }
-    if (ownerActiveQueue === "issues_damage") {
-      return {
-        title: "Damage issues",
-        description: "Jobs currently flagged with damage findings.",
-      };
-    }
-
-    return {
-      title: "Owner job queue",
-      description: "Select a summary item below to open a focused job queue.",
-    };
-  })();
 
   const jobSummaryItems = [
     { key: "future_all", label: "Total future", value: totalFutureJobs, tone: "pending" as const },
@@ -1885,38 +1707,6 @@ export default function HomePage() {
     }
   }
 
-  async function handleLoadCleanerSchedule(providerId: string) {
-    setSelectedCleanerScheduleProviderId(providerId);
-    setLoadingCleanerSchedule(true);
-    setCleanerScheduleError("");
-    setCleanerScheduleJobs([]);
-
-    if (!providerId) {
-      setLoadingCleanerSchedule(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/service-providers/${providerId}/cleaning-jobs`);
-      const data = (await response.json()) as
-        | ServiceProviderCleaningJobsResponse
-        | CalendarSyncError;
-
-      if (!response.ok) {
-        setCleanerScheduleError(
-          (data as CalendarSyncError).error || "Failed to load assigned cleaning jobs."
-        );
-        return;
-      }
-
-      setCleanerScheduleJobs((data as ServiceProviderCleaningJobsResponse).cleaningJobs);
-    } catch {
-      setCleanerScheduleError("Failed to load assigned cleaning jobs.");
-    } finally {
-      setLoadingCleanerSchedule(false);
-    }
-  }
-
   async function handleUpdateCleaningJobNotes(jobId: string, notes: string | null) {
     setUpdatingNotesJobId(jobId);
     setCleaningJobNotesError("");
@@ -1965,19 +1755,6 @@ export default function HomePage() {
               assignedProvider: updatedJob.assignedProvider ?? currentJob.assignedProvider,
             }
           : currentJob
-      );
-
-      setCleanerScheduleJobs((previous) =>
-        previous.map((job) =>
-          job.id === jobId
-            ? {
-                ...job,
-                ...updatedJob,
-                property: updatedJob.property ?? job.property,
-                calendarEvent: updatedJob.calendarEvent ?? job.calendarEvent,
-              }
-            : job
-        )
       );
     } catch {
       setCleaningJobNotesError("Failed to update cleaning job notes.");
@@ -2042,19 +1819,6 @@ export default function HomePage() {
               assignedProvider: updatedJob.assignedProvider ?? currentJob.assignedProvider,
             }
           : currentJob
-      );
-
-      setCleanerScheduleJobs((previous) =>
-        previous.map((job) =>
-          job.id === jobId
-            ? {
-                ...job,
-                ...updatedJob,
-                property: updatedJob.property ?? job.property,
-                calendarEvent: updatedJob.calendarEvent ?? job.calendarEvent,
-              }
-            : job
-        )
       );
     } catch {
       setCleaningJobIssueFlagsError("Failed to update cleaning job issue flags.");
@@ -3075,12 +2839,9 @@ export default function HomePage() {
               <div className="rounded-[14px] border border-[#E5E0D8] bg-[#0D1B2A] p-5 text-white shadow-[0_12px_24px_rgba(13,27,42,0.16)]">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#E5E0D8]">
-                      Quick create
-                    </p>
-                    <h3 className="font-serif text-2xl font-semibold">Create a one-off job</h3>
+                    <h3 className="font-serif text-2xl font-semibold">Create ad hoc job</h3>
                     <p className="max-w-2xl text-sm text-[#F3EDE2]">
-                      Use the form below to add a custom cleaning, maintenance, or restock request.
+                      Cleaning, maintenance, restock, or one-time work.
                     </p>
                   </div>
                   <button
@@ -3090,7 +2851,8 @@ export default function HomePage() {
                     }}
                     className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#B8860B] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#9F7408]"
                   >
-                    + New job
+                    <span className="hidden sm:inline">+ New Job</span>
+                    <span className="sm:hidden">+ New</span>
                   </button>
                 </div>
               </div>
@@ -3120,10 +2882,23 @@ export default function HomePage() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div className="space-y-1">
                     <h3 className="font-serif text-xl font-semibold text-[#0D1B2A]">Filter jobs</h3>
-                    <p className="text-sm text-[#7A7060]">Narrow the queue by status, cleaner, or view mode.</p>
+                    <p className="text-sm text-[#7A7060]">Set filters first, then view matching jobs.</p>
                   </div>
 
-                  <div className="inline-flex rounded-full bg-[#FAF7F2] p-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowJobs((previous) => !previous)}
+                    className={`inline-flex min-h-11 items-center justify-center rounded-full px-5 py-2.5 text-sm font-medium transition ${
+                      showJobs
+                        ? "bg-[#E8F4F1] text-[#0F6A5F] hover:bg-[#D4E8E4]"
+                        : "bg-[#0D1B2A] text-white shadow-[0_6px_16px_rgba(13,27,42,0.16)] hover:bg-[#0A1420]"
+                    }`}
+                  >
+                    {showJobs ? "Hide Jobs" : "View Jobs"}
+                  </button>
+                </div>
+
+                <div className="mt-5 inline-flex rounded-full bg-[#FAF7F2] p-1">
                     <button
                       type="button"
                       onClick={() => setCleaningJobsView("list")}
@@ -3153,7 +2928,6 @@ export default function HomePage() {
                     >
                       Calendar
                     </button>
-                  </div>
                 </div>
 
                 <div className="mt-5 grid gap-4 lg:grid-cols-3">
@@ -3200,7 +2974,7 @@ export default function HomePage() {
 
                   <div className="flex items-end">
                     <p className="rounded-2xl border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-3 text-sm text-[#7A7060]">
-                      {filteredCleaningJobs.length} job{filteredCleaningJobs.length === 1 ? "" : "s"} shown
+                      {filteredCleaningJobs.length} job{filteredCleaningJobs.length === 1 ? "" : "s"} available
                     </p>
                   </div>
                 </div>
@@ -3256,44 +3030,54 @@ export default function HomePage() {
             </p>
               ) : null}
 
-              {!loadingCleaningJobsPropertyId && !cleaningJobsError && cleaningJobs.length === 0 ? (
-            <EmptyState
-              title="No jobs assigned yet"
-              message="Create your first job to begin dispatching work."
-              actionLabel="Create your first job"
-              onAction={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            />
-              ) : null}
+              {showJobs ? (
+                <>
+                  {!loadingCleaningJobsPropertyId && !cleaningJobsError && cleaningJobs.length === 0 ? (
+                <EmptyState
+                  title="No jobs assigned yet"
+                  message="Create your first job to begin dispatching work."
+                  actionLabel="Create your first job"
+                  onAction={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                />
+                  ) : null}
 
-              {!loadingCleaningJobsPropertyId && !cleaningJobsError && cleaningJobs.length > 0 && filteredCleaningJobs.length === 0 ? (
-            <p className="text-sm text-[#7A7060]">No cleaning jobs match this filter.</p>
-              ) : null}
+                  {!loadingCleaningJobsPropertyId && !cleaningJobsError && cleaningJobs.length > 0 && filteredCleaningJobs.length === 0 ? (
+                <div className="rounded-[12px] border-2 border-dashed border-[#E5E0D8] bg-[#FAF7F2] p-6 text-center">
+                  <h4 className="font-serif text-lg font-semibold text-[#0D1B2A]">No matching jobs</h4>
+                  <p className="mt-1 text-sm text-[#7A7060]">Adjust the filters or create a new ad hoc job.</p>
+                </div>
+                  ) : null}
 
-              {!loadingCleaningJobsPropertyId && !cleaningJobsError && filteredCleaningJobs.length > 0 ? (
-                ownerJobsTabView === "list" ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                {filteredCleaningJobs.map((job) => (
-                  <CleaningJobCard
-                    key={job.id}
-                    job={job}
-                    onStatusChange={handleUpdateCleaningJobStatus}
-                    statusUpdating={updatingCleaningJobId === job.id}
-                    cleanerProviders={cleanerProviders}
-                    onProviderChange={handleAssignCleaningJobProvider}
-                    providerUpdating={updatingProviderJobId === job.id}
-                    showOwnerActions={true}
-                    onOwnerSelfAssign={handleOwnerSelfAssignCleaningJob}
-                    ownerSelfAssigning={selfAssigningJobId === job.id}
-                    onNotesChange={handleUpdateCleaningJobNotes}
-                    notesUpdating={updatingNotesJobId === job.id}
-                    onIssueFlagsChange={handleUpdateCleaningJobIssueFlags}
-                    issueFlagsUpdating={updatingIssueFlagsJobId === job.id}
-                  />
-                ))}
-              </div>
-                ) : (
-              <CleaningJobCalendar jobs={filteredCleaningJobs} />
-                )
+                  {!loadingCleaningJobsPropertyId && !cleaningJobsError && filteredCleaningJobs.length > 0 ? (
+                    <>
+                      <h3 className="mt-6 font-serif text-lg font-semibold text-[#0D1B2A]">Matching Jobs</h3>
+                      {ownerJobsTabView === "list" ? (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {filteredCleaningJobs.map((job) => (
+                        <CleaningJobCard
+                          key={job.id}
+                          job={job}
+                          onStatusChange={handleUpdateCleaningJobStatus}
+                          statusUpdating={updatingCleaningJobId === job.id}
+                          cleanerProviders={cleanerProviders}
+                          onProviderChange={handleAssignCleaningJobProvider}
+                          providerUpdating={updatingProviderJobId === job.id}
+                          showOwnerActions={true}
+                          onOwnerSelfAssign={handleOwnerSelfAssignCleaningJob}
+                          ownerSelfAssigning={selfAssigningJobId === job.id}
+                          onNotesChange={handleUpdateCleaningJobNotes}
+                          notesUpdating={updatingNotesJobId === job.id}
+                          onIssueFlagsChange={handleUpdateCleaningJobIssueFlags}
+                          issueFlagsUpdating={updatingIssueFlagsJobId === job.id}
+                        />
+                      ))}
+                    </div>
+                      ) : (
+                    <CleaningJobCalendar jobs={filteredCleaningJobs} />
+                      )}
+                    </>
+                  ) : null}
+                </>
               ) : null}
 
               <section className="mt-6 space-y-3">
@@ -3311,7 +3095,7 @@ export default function HomePage() {
                         </span>
                       ) : null}
                     </div>
-                    <span className="text-sm text-[#7A7060]">{showJobSummary ? "▴" : "▾"}</span>
+                    <span className="text-sm text-[#7A7060]">{showJobSummary ? "^" : "v"}</span>
                   </div>
                 </button>
 
@@ -3366,7 +3150,7 @@ export default function HomePage() {
                         </span>
                       ) : null}
                     </div>
-                    <span className="text-sm text-[#7A7060]">{showIssuesSummary ? "▴" : "▾"}</span>
+                    <span className="text-sm text-[#7A7060]">{showIssuesSummary ? "^" : "v"}</span>
                   </div>
                 </button>
 
@@ -3400,144 +3184,13 @@ export default function HomePage() {
                     </div>
                   ) : (
                     <p className="rounded-[12px] border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-3 text-sm text-[#7A7060]">
-                      No open issues to summarize.
+                      No issues reported.
                     </p>
                   )
                 ) : null}
               </section>
 
-              <section
-                className={`mt-4 space-y-3 rounded-[12px] border p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)] ${
-                  ownerActiveQueue === "notification_job"
-                    ? "border-indigo-200 bg-indigo-50/60 ring-1 ring-indigo-200"
-                    : "border-[#E5E0D8] bg-white"
-                }`}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h4 className="text-sm font-semibold text-[#0D1B2A]">Owner job queue</h4>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOwnerActiveQueue("none");
-                      setFocusedOwnerNotificationJob(null);
-                      setFocusedOwnerNotificationJobError("");
-                      setLoadingFocusedOwnerNotificationJob(false);
-                    }}
-                    className="rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-3 py-1.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-white"
-                  >
-                    {ownerActiveQueue === "notification_job" ? "Close notification job" : "Clear queue"}
-                  </button>
-                </div>
-
-                {ownerActiveQueue === "none" ? (
-                  <p className="text-sm text-[#7A7060]">
-                    Select a summary item above to open a focused job queue.
-                  </p>
-                ) : (
-                  <>
-                    <div className="space-y-1">
-                      <h5 className="text-sm font-semibold text-[#0D1B2A]">{ownerQueueMeta.title}</h5>
-                      <p className="text-sm text-[#7A7060]">{ownerQueueMeta.description}</p>
-                    </div>
-
-                    {ownerActiveQueue === "notification_job" && loadingFocusedOwnerNotificationJob ? (
-                      <p className="text-sm text-[#7A7060]">Loading job...</p>
-                    ) : null}
-
-                    {ownerActiveQueue === "notification_job" && focusedOwnerNotificationJobError ? (
-                      <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                        {focusedOwnerNotificationJobError}
-                      </p>
-                    ) : null}
-
-                    {ownerActiveQueue === "notification_job" && !loadingFocusedOwnerNotificationJob && !focusedOwnerNotificationJobError && !focusedOwnerNotificationJob ? (
-                      <p className="text-sm text-[#7A7060]">This job is not currently loaded for the selected property.</p>
-                    ) : null}
-
-                    {ownerQueueJobs.length > 0 ? (
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {ownerQueueJobs.map((job) => (
-                          <CleaningJobCard
-                            key={`queue-${ownerActiveQueue}-${job.id}`}
-                            job={job}
-                            onStatusChange={handleUpdateCleaningJobStatus}
-                            statusUpdating={updatingCleaningJobId === job.id}
-                            cleanerProviders={cleanerProviders}
-                            onProviderChange={handleAssignCleaningJobProvider}
-                            providerUpdating={updatingProviderJobId === job.id}
-                            showOwnerActions={true}
-                            onOwnerSelfAssign={handleOwnerSelfAssignCleaningJob}
-                            ownerSelfAssigning={selfAssigningJobId === job.id}
-                            onNotesChange={handleUpdateCleaningJobNotes}
-                            notesUpdating={updatingNotesJobId === job.id}
-                            onIssueFlagsChange={handleUpdateCleaningJobIssueFlags}
-                            issueFlagsUpdating={updatingIssueFlagsJobId === job.id}
-                          />
-                        ))}
-                      </div>
-                    ) : null}
-
-                    {ownerActiveQueue !== "notification_job" && ownerQueueJobs.length === 0 ? (
-                      <p className="text-sm text-[#7A7060]">No jobs assigned yet.</p>
-                    ) : null}
-                  </>
-                )}
-              </section>
             </>
-          ) : null}
-          </section>
-        ) : null}
-
-        {ownerActiveTab === "jobs" ? (
-          <section className="space-y-3">
-          <h3 className="text-sm font-semibold text-slate-900">Cleaner schedule preview</h3>
-          <p className="text-sm text-slate-600">
-            Select a cleaner to preview their assigned cleaning schedule.
-          </p>
-
-          <div className="max-w-sm space-y-1">
-            <label htmlFor="cleanerScheduleProvider" className="block text-sm font-medium text-slate-700">
-              Cleaner
-            </label>
-            <select
-              id="cleanerScheduleProvider"
-              value={selectedCleanerScheduleProviderId}
-              onChange={(event) => {
-                void handleLoadCleanerSchedule(event.target.value);
-              }}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500"
-            >
-              <option value="">Select cleaner</option>
-              {cleanerProviders.map((provider) => (
-                <option key={provider.id} value={provider.id}>
-                  {provider.companyName
-                    ? `${provider.name} (${provider.companyName})`
-                    : provider.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {loadingCleanerSchedule ? (
-            <p className="text-sm text-slate-600">Loading cleaner schedule...</p>
-          ) : null}
-
-          {cleanerScheduleError ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {cleanerScheduleError}
-            </p>
-          ) : null}
-
-          {selectedCleanerScheduleProviderId && !loadingCleanerSchedule ? (
-            <CleanerSchedule
-              jobs={cleanerScheduleJobs}
-              onNotesChange={handleUpdateCleaningJobNotes}
-              notesUpdatingJobId={updatingNotesJobId}
-            />
-          ) : null}
-
-          {!selectedCleanerScheduleProviderId ? (
-            <p className="text-sm text-slate-600">Select a cleaner to view their assigned jobs.</p>
           ) : null}
           </section>
         ) : null}
