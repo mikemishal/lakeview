@@ -535,7 +535,9 @@ export default function HomePage() {
     "grouped"
   );
   const [ownerActiveQueue, setOwnerActiveQueue] = useState<OwnerActiveQueue>("none");
-  const [futureSummaryRange, setFutureSummaryRange] = useState<7 | 30 | 90>(30);
+  const [futureSummaryRange] = useState<7 | 30 | 90>(30);
+  const [showJobSummary, setShowJobSummary] = useState(false);
+  const [showIssuesSummary, setShowIssuesSummary] = useState(false);
   const [cleaningJobStatusFilter, setCleaningJobStatusFilter] = useState("all");
   const [cleaningJobProviderFilter, setCleaningJobProviderFilter] = useState("all");
   const [showManualSync, setShowManualSync] = useState(false);
@@ -893,9 +895,38 @@ export default function HomePage() {
 
     return {
       title: "Owner job queue",
-      description: "Select a summary card above to open a focused job queue.",
+      description: "Select a summary item below to open a focused job queue.",
     };
   })();
+
+  const jobSummaryItems = [
+    { key: "future_all", label: "Total future", value: totalFutureJobs, tone: "pending" as const },
+    { key: "future_needs_assignment", label: "Needs provider", value: futureNeedsAssignment, tone: "pending" as const },
+    { key: "future_assigned", label: "Assigned", value: futureAssigned, tone: "pending" as const },
+    { key: "future_declined", label: "Declined", value: futureDeclined, tone: "urgent" as const },
+    { key: "future_accepted", label: "Accepted", value: futureAccepted, tone: "good" as const },
+    { key: "future_in_progress", label: "In progress", value: futureInProgress, tone: "pending" as const },
+    { key: "future_cancelled", label: "Cancelled", value: futureCancelled, tone: "urgent" as const },
+    { key: "future_issues", label: "With issues", value: futureWithIssues, tone: "urgent" as const },
+    { key: "past_all", label: "Total past", value: totalPastJobs, tone: "pending" as const },
+    { key: "past_completed", label: "Completed", value: pastCompleted, tone: "good" as const },
+    { key: "past_not_completed", label: "Not completed", value: pastNotCompleted, tone: "pending" as const },
+    { key: "past_issues", label: "Had issues", value: pastWithIssues, tone: "urgent" as const },
+  ];
+
+  const issuesSummaryItems = [
+    { key: "issues_all", label: "Total issues", value: jobsWithIssues.length, tone: "urgent" as const },
+    { key: "issues_maintenance", label: "Maintenance", value: maintenanceJobs.length, tone: "pending" as const },
+    { key: "issues_restock", label: "Restock", value: restockJobs.length, tone: "pending" as const },
+    { key: "issues_damage", label: "Damage", value: damageJobs.length, tone: "urgent" as const },
+  ];
+
+  const visibleJobSummaryItems = jobSummaryItems.filter(
+    (item) => typeof item.value === "number" && item.value > 0
+  );
+  const visibleIssuesSummaryItems = issuesSummaryItems.filter(
+    (item) => typeof item.value === "number" && item.value > 0
+  );
 
   const loadCleaningJobsForProperty = useCallback(
     async (propertyId: string, options?: { silent?: boolean }) => {
@@ -3026,374 +3057,11 @@ export default function HomePage() {
 
         {ownerActiveTab === "overview" || ownerActiveTab === "jobs" ? (
           <section className="space-y-3">
-          {ownerActiveTab === "jobs" ? (
-            <section className="hidden space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm md:block">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-sm font-semibold text-slate-900">Job summary</h4>
-              <div className="flex flex-wrap rounded-md border border-slate-300 bg-white p-1">
-                <button
-                  type="button"
-                  onClick={() => setFutureSummaryRange(7)}
-                  className={`rounded px-3 py-1.5 text-sm font-medium transition ${
-                    futureSummaryRange === 7
-                      ? "bg-slate-900 text-white"
-                      : "text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  Next 7 days
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFutureSummaryRange(30)}
-                  className={`rounded px-3 py-1.5 text-sm font-medium transition ${
-                    futureSummaryRange === 30
-                      ? "bg-slate-900 text-white"
-                      : "text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  Next 30 days
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFutureSummaryRange(90)}
-                  className={`rounded px-3 py-1.5 text-sm font-medium transition ${
-                    futureSummaryRange === 90
-                      ? "bg-slate-900 text-white"
-                      : "text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  Next 90 days
-                </button>
-              </div>
-            </div>
+          {ownerActiveTab === "jobs" ? null : null}
 
-            <section className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <h5 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Future jobs</h5>
-                <p className="text-xs font-medium text-slate-600">Next {futureSummaryRange} days</p>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <button
-                  type="button"
-                  onClick={() => setOwnerActiveQueue("future_all")}
-                  className={`rounded-lg border bg-white p-3 text-left transition ${
-                    ownerActiveQueue === "future_all"
-                      ? "border-slate-300 ring-2 ring-slate-300"
-                      : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total future</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{totalFutureJobs}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOwnerActiveQueue("future_needs_assignment")}
-                  className={`rounded-lg border bg-white p-3 text-left transition ${
-                    ownerActiveQueue === "future_needs_assignment"
-                      ? "border-slate-300 ring-2 ring-slate-300"
-                      : futureNeedsAssignment > 0
-                        ? "border-amber-300 bg-amber-50/60 hover:bg-amber-50/80"
-                        : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Needs provider</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{futureNeedsAssignment}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOwnerActiveQueue("future_assigned")}
-                  className={`rounded-lg border bg-white p-3 text-left transition ${
-                    ownerActiveQueue === "future_assigned"
-                      ? "border-slate-300 ring-2 ring-slate-300"
-                      : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Assigned</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{futureAssigned}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOwnerActiveQueue("future_declined")}
-                  className={`rounded-lg border bg-white p-3 text-left transition ${
-                    ownerActiveQueue === "future_declined"
-                      ? "border-slate-300 ring-2 ring-slate-300"
-                      : futureDeclined > 0
-                        ? "border-amber-300 bg-amber-50/60 hover:bg-amber-50/80"
-                        : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Declined</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{futureDeclined}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOwnerActiveQueue("future_accepted")}
-                  className={`rounded-lg border bg-white p-3 text-left transition ${
-                    ownerActiveQueue === "future_accepted"
-                      ? "border-slate-300 ring-2 ring-slate-300"
-                      : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Accepted</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{futureAccepted}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOwnerActiveQueue("future_in_progress")}
-                  className={`rounded-lg border bg-white p-3 text-left transition ${
-                    ownerActiveQueue === "future_in_progress"
-                      ? "border-slate-300 ring-2 ring-slate-300"
-                      : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">In progress</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{futureInProgress}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOwnerActiveQueue("future_cancelled")}
-                  className={`rounded-lg border bg-white p-3 text-left transition ${
-                    ownerActiveQueue === "future_cancelled"
-                      ? "border-slate-300 ring-2 ring-slate-300"
-                      : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Cancelled</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{futureCancelled}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOwnerActiveQueue("future_issues")}
-                  className={`rounded-lg border bg-white p-3 text-left transition ${
-                    ownerActiveQueue === "future_issues"
-                      ? "border-slate-300 ring-2 ring-slate-300"
-                      : futureWithIssues > 0
-                        ? "border-amber-300 bg-amber-50/60 hover:bg-amber-50/80"
-                        : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">With issues</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{futureWithIssues}</p>
-                </button>
-              </div>
-            </section>
+          {ownerActiveTab === "jobs" ? null : null}
 
-            <section className="space-y-2">
-              <h5 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Past jobs</h5>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <button
-                  type="button"
-                  onClick={() => setOwnerActiveQueue("past_all")}
-                  className={`rounded-lg border bg-white p-3 text-left transition ${
-                    ownerActiveQueue === "past_all"
-                      ? "border-slate-300 ring-2 ring-slate-300"
-                      : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total past</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{totalPastJobs}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOwnerActiveQueue("past_completed")}
-                  className={`rounded-lg border bg-white p-3 text-left transition ${
-                    ownerActiveQueue === "past_completed"
-                      ? "border-slate-300 ring-2 ring-slate-300"
-                      : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Completed</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{pastCompleted}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOwnerActiveQueue("past_not_completed")}
-                  className={`rounded-lg border bg-white p-3 text-left transition ${
-                    ownerActiveQueue === "past_not_completed"
-                      ? "border-slate-300 ring-2 ring-slate-300"
-                      : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Not completed</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{pastNotCompleted}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOwnerActiveQueue("past_issues")}
-                  className={`rounded-lg border bg-white p-3 text-left transition ${
-                    ownerActiveQueue === "past_issues"
-                      ? "border-slate-300 ring-2 ring-slate-300"
-                      : pastWithIssues > 0
-                        ? "border-amber-300 bg-amber-50/60 hover:bg-amber-50/80"
-                        : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Had issues</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{pastWithIssues}</p>
-                </button>
-              </div>
-            </section>
-            </section>
-          ) : null}
-
-          {ownerActiveTab === "jobs" ? (
-            <section className="hidden space-y-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm md:block">
-            <h4 className="text-sm font-semibold text-slate-900">Issue summary</h4>
-
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <button
-                type="button"
-                onClick={() => setOwnerActiveQueue("issues_all")}
-                className={`rounded-lg border bg-white p-3 text-left transition ${
-                  ownerActiveQueue === "issues_all"
-                    ? "border-slate-300 ring-2 ring-slate-300"
-                    : "border-amber-200 hover:bg-slate-50"
-                }`}
-              >
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total issues</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">{jobsWithIssues.length}</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setOwnerActiveQueue("issues_maintenance")}
-                className={`rounded-lg border bg-white p-3 text-left transition ${
-                  ownerActiveQueue === "issues_maintenance"
-                    ? "border-slate-300 ring-2 ring-slate-300"
-                    : "border-amber-200 hover:bg-slate-50"
-                }`}
-              >
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Maintenance</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">{maintenanceJobs.length}</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setOwnerActiveQueue("issues_restock")}
-                className={`rounded-lg border bg-white p-3 text-left transition ${
-                  ownerActiveQueue === "issues_restock"
-                    ? "border-slate-300 ring-2 ring-slate-300"
-                    : "border-amber-200 hover:bg-slate-50"
-                }`}
-              >
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Restock</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">{restockJobs.length}</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setOwnerActiveQueue("issues_damage")}
-                className={`rounded-lg border bg-white p-3 text-left transition ${
-                  ownerActiveQueue === "issues_damage"
-                    ? "border-slate-300 ring-2 ring-slate-300"
-                    : "border-amber-200 hover:bg-slate-50"
-                }`}
-              >
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Damage</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">{damageJobs.length}</p>
-              </button>
-            </div>
-
-            {jobsWithIssues.length === 0 ? (
-              <p className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-700">
-                No issues flagged for this property.
-              </p>
-            ) : null}
-            </section>
-          ) : null}
-
-          {ownerActiveTab === "jobs" ? (
-            <section
-            className={`hidden space-y-3 rounded-xl p-4 shadow-sm md:block ${
-              ownerActiveQueue === "notification_job"
-                ? "border border-indigo-200 bg-indigo-50/60 ring-1 ring-indigo-200"
-                : "border border-slate-200 bg-slate-50/70"
-            }`}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-sm font-semibold text-slate-900">Owner job queue</h4>
-              <button
-                type="button"
-                onClick={() => {
-                  updateOwnerTab("jobs");
-                  setAdHocJobFocusToken((previous) => previous + 1);
-                }}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-              >
-                Create ad hoc job
-              </button>
-            </div>
-
-            {ownerActiveQueue === "none" ? (
-              <p className="text-sm text-slate-600">
-                Select a summary card above to open a focused job queue.
-              </p>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="space-y-1">
-                    <h5 className="text-sm font-semibold text-slate-900">{ownerQueueMeta.title}</h5>
-                    <p className="text-sm text-slate-600">{ownerQueueMeta.description}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOwnerActiveQueue("none");
-                      setFocusedOwnerNotificationJob(null);
-                      setFocusedOwnerNotificationJobError("");
-                      setLoadingFocusedOwnerNotificationJob(false);
-                    }}
-                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-                  >
-                    {ownerActiveQueue === "notification_job"
-                      ? "Close notification job"
-                      : "Clear queue"}
-                  </button>
-                </div>
-
-                {ownerActiveQueue === "notification_job" && loadingFocusedOwnerNotificationJob ? (
-                  <p className="text-sm text-slate-600">Loading job...</p>
-                ) : null}
-
-                {ownerActiveQueue === "notification_job" && focusedOwnerNotificationJobError ? (
-                  <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {focusedOwnerNotificationJobError}
-                  </p>
-                ) : null}
-
-                {ownerActiveQueue === "notification_job" && !loadingFocusedOwnerNotificationJob && !focusedOwnerNotificationJobError && !focusedOwnerNotificationJob ? (
-                  <p className="text-sm text-slate-600">
-                    This job is not currently loaded for the selected property.
-                  </p>
-                ) : null}
-
-                {ownerQueueJobs.length > 0 ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {ownerQueueJobs.map((job) => (
-                      <CleaningJobCard
-                        key={`queue-${ownerActiveQueue}-${job.id}`}
-                        job={job}
-                        onStatusChange={handleUpdateCleaningJobStatus}
-                        statusUpdating={updatingCleaningJobId === job.id}
-                        cleanerProviders={cleanerProviders}
-                        onProviderChange={handleAssignCleaningJobProvider}
-                        providerUpdating={updatingProviderJobId === job.id}
-                        showOwnerActions={true}
-                        onOwnerSelfAssign={handleOwnerSelfAssignCleaningJob}
-                        ownerSelfAssigning={selfAssigningJobId === job.id}
-                        onNotesChange={handleUpdateCleaningJobNotes}
-                        notesUpdating={updatingNotesJobId === job.id}
-                        onIssueFlagsChange={handleUpdateCleaningJobIssueFlags}
-                        issueFlagsUpdating={updatingIssueFlagsJobId === job.id}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-
-                {ownerActiveQueue !== "notification_job" && ownerQueueJobs.length === 0 ? (
-                  <p className="text-sm text-slate-600">No jobs assigned yet.</p>
-                ) : null}
-              </>
-            )}
-            </section>
-          ) : null}
+          {ownerActiveTab === "jobs" ? null : null}
 
           {ownerActiveTab === "jobs" ? (
             <>
@@ -3627,6 +3295,194 @@ export default function HomePage() {
               <CleaningJobCalendar jobs={filteredCleaningJobs} />
                 )
               ) : null}
+
+              <section className="mt-6 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setShowJobSummary((previous) => !previous)}
+                  className="w-full rounded-[12px] border border-[#E5E0D8] bg-white px-4 py-3 text-left shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2]"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-[#0D1B2A]">Job Summary</span>
+                      {visibleJobSummaryItems.length > 0 ? (
+                        <span className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[#E8F4F1] px-2 text-xs font-semibold text-[#0F6A5F]">
+                          {visibleJobSummaryItems.length}
+                        </span>
+                      ) : null}
+                    </div>
+                    <span className="text-sm text-[#7A7060]">{showJobSummary ? "▴" : "▾"}</span>
+                  </div>
+                </button>
+
+                {showJobSummary ? (
+                  visibleJobSummaryItems.length > 0 ? (
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {visibleJobSummaryItems.map((item) => {
+                        const toneClasses =
+                          item.tone === "good"
+                            ? "bg-[#E8F4F1] text-[#0F6A5F]"
+                            : item.tone === "urgent"
+                              ? "bg-[#FDECEC] text-[#B42318]"
+                              : "bg-[#FFF4E5] text-[#9A5B00]";
+
+                        return (
+                          <button
+                            key={item.key}
+                            type="button"
+                            onClick={() => setOwnerActiveQueue(item.key as OwnerActiveQueue)}
+                            className={`w-full rounded-[12px] border border-[#E5E0D8] px-3 py-2 text-left transition hover:bg-[#FAF7F2] ${
+                              ownerActiveQueue === item.key ? "bg-[#FAF7F2]" : "bg-white"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-medium text-[#0D1B2A]">{item.label}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-sm font-semibold ${toneClasses}`}>
+                                {item.value}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="rounded-[12px] border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-3 text-sm text-[#7A7060]">
+                      No job activity to summarize.
+                    </p>
+                  )
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => setShowIssuesSummary((previous) => !previous)}
+                  className="w-full rounded-[12px] border border-[#E5E0D8] bg-white px-4 py-3 text-left shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2]"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-[#0D1B2A]">Issues Summary</span>
+                      {visibleIssuesSummaryItems.length > 0 ? (
+                        <span className="inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[#FFF4E5] px-2 text-xs font-semibold text-[#9A5B00]">
+                          {visibleIssuesSummaryItems.length}
+                        </span>
+                      ) : null}
+                    </div>
+                    <span className="text-sm text-[#7A7060]">{showIssuesSummary ? "▴" : "▾"}</span>
+                  </div>
+                </button>
+
+                {showIssuesSummary ? (
+                  visibleIssuesSummaryItems.length > 0 ? (
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {visibleIssuesSummaryItems.map((item) => {
+                        const toneClasses =
+                          item.tone === "urgent"
+                            ? "bg-[#FDECEC] text-[#B42318]"
+                            : "bg-[#FFF4E5] text-[#9A5B00]";
+
+                        return (
+                          <button
+                            key={item.key}
+                            type="button"
+                            onClick={() => setOwnerActiveQueue(item.key as OwnerActiveQueue)}
+                            className={`w-full rounded-[12px] border border-[#E5E0D8] px-3 py-2 text-left transition hover:bg-[#FAF7F2] ${
+                              ownerActiveQueue === item.key ? "bg-[#FAF7F2]" : "bg-white"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-medium text-[#0D1B2A]">{item.label}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-sm font-semibold ${toneClasses}`}>
+                                {item.value}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="rounded-[12px] border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-3 text-sm text-[#7A7060]">
+                      No open issues to summarize.
+                    </p>
+                  )
+                ) : null}
+              </section>
+
+              <section
+                className={`mt-4 space-y-3 rounded-[12px] border p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)] ${
+                  ownerActiveQueue === "notification_job"
+                    ? "border-indigo-200 bg-indigo-50/60 ring-1 ring-indigo-200"
+                    : "border-[#E5E0D8] bg-white"
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="text-sm font-semibold text-[#0D1B2A]">Owner job queue</h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOwnerActiveQueue("none");
+                      setFocusedOwnerNotificationJob(null);
+                      setFocusedOwnerNotificationJobError("");
+                      setLoadingFocusedOwnerNotificationJob(false);
+                    }}
+                    className="rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-3 py-1.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-white"
+                  >
+                    {ownerActiveQueue === "notification_job" ? "Close notification job" : "Clear queue"}
+                  </button>
+                </div>
+
+                {ownerActiveQueue === "none" ? (
+                  <p className="text-sm text-[#7A7060]">
+                    Select a summary item above to open a focused job queue.
+                  </p>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <h5 className="text-sm font-semibold text-[#0D1B2A]">{ownerQueueMeta.title}</h5>
+                      <p className="text-sm text-[#7A7060]">{ownerQueueMeta.description}</p>
+                    </div>
+
+                    {ownerActiveQueue === "notification_job" && loadingFocusedOwnerNotificationJob ? (
+                      <p className="text-sm text-[#7A7060]">Loading job...</p>
+                    ) : null}
+
+                    {ownerActiveQueue === "notification_job" && focusedOwnerNotificationJobError ? (
+                      <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {focusedOwnerNotificationJobError}
+                      </p>
+                    ) : null}
+
+                    {ownerActiveQueue === "notification_job" && !loadingFocusedOwnerNotificationJob && !focusedOwnerNotificationJobError && !focusedOwnerNotificationJob ? (
+                      <p className="text-sm text-[#7A7060]">This job is not currently loaded for the selected property.</p>
+                    ) : null}
+
+                    {ownerQueueJobs.length > 0 ? (
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {ownerQueueJobs.map((job) => (
+                          <CleaningJobCard
+                            key={`queue-${ownerActiveQueue}-${job.id}`}
+                            job={job}
+                            onStatusChange={handleUpdateCleaningJobStatus}
+                            statusUpdating={updatingCleaningJobId === job.id}
+                            cleanerProviders={cleanerProviders}
+                            onProviderChange={handleAssignCleaningJobProvider}
+                            providerUpdating={updatingProviderJobId === job.id}
+                            showOwnerActions={true}
+                            onOwnerSelfAssign={handleOwnerSelfAssignCleaningJob}
+                            ownerSelfAssigning={selfAssigningJobId === job.id}
+                            onNotesChange={handleUpdateCleaningJobNotes}
+                            notesUpdating={updatingNotesJobId === job.id}
+                            onIssueFlagsChange={handleUpdateCleaningJobIssueFlags}
+                            issueFlagsUpdating={updatingIssueFlagsJobId === job.id}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {ownerActiveQueue !== "notification_job" && ownerQueueJobs.length === 0 ? (
+                      <p className="text-sm text-[#7A7060]">No jobs assigned yet.</p>
+                    ) : null}
+                  </>
+                )}
+              </section>
             </>
           ) : null}
           </section>
