@@ -93,6 +93,7 @@ model OwnerProfile {
 
   properties         Property[]
   notifications      Notification[]
+  teamMembers        OwnerProviderTeamMember[]
 
   @@index([authUserId])
   @@index([active])
@@ -191,6 +192,7 @@ model ServiceProvider {
   cleaningJobs       CleaningJob[]
   notifications      Notification[]
   capabilities       ProviderCapability[]
+  ownerTeams         OwnerProviderTeamMember[]
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
@@ -202,6 +204,26 @@ model ServiceProvider {
   @@index([baseCity])
   @@index([baseState])
   @@index([ratingAverage])
+}
+
+model OwnerProviderTeamMember {
+  id                   String          @id @default(cuid())
+  ownerProfileId       String
+  serviceProviderId    String
+  isActive             Boolean         @default(true)
+  cleaningFlatRateCents Int?
+  cleaningHourlyRateCents Int?
+  pricingNotes         String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  ownerProfile         OwnerProfile    @relation(fields: [ownerProfileId], references: [id], onDelete: Cascade)
+  serviceProvider      ServiceProvider @relation(fields: [serviceProviderId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerProfileId, serviceProviderId])
+  @@index([ownerProfileId])
+  @@index([serviceProviderId])
+  @@index([isActive])
 }
 
 model ProviderCapability {

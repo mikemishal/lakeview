@@ -177,6 +177,40 @@ type SaveServiceProviderResponse = {
   serviceProvider: ServiceProvider;
 };
 
+type TeamProviderAreaStatus = "in_area" | "out_of_area" | "unknown";
+
+type OwnerTeamMember = {
+  id: string;
+  ownerProfileId: string;
+  serviceProviderId: string;
+  isActive: boolean;
+  cleaningFlatRateCents: number | null;
+  cleaningHourlyRateCents: number | null;
+  pricingNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  distanceMiles: number | null;
+  thresholdMiles: number;
+  areaStatus: TeamProviderAreaStatus;
+  serviceProvider: ServiceProvider;
+};
+
+type AvailableTeamProvider = {
+  provider: ServiceProvider;
+  distanceMiles: number | null;
+  thresholdMiles: number;
+  areaStatus: TeamProviderAreaStatus;
+};
+
+type OwnerTeamProvidersResponse = {
+  teamMembers: OwnerTeamMember[];
+  availableProviders: AvailableTeamProvider[];
+};
+
+type TeamProviderResponse = {
+  teamMember: OwnerTeamMember;
+};
+
 type NotificationsResponse = {
   notifications: AppNotification[];
 };
@@ -185,6 +219,8 @@ type OwnerProfileSummary = {
   id: string;
   name: string;
   companyName: string | null;
+  propertyLatitude: number | null;
+  propertyLongitude: number | null;
 };
 
 type AccountProfileSummary = {
@@ -275,6 +311,31 @@ function providerCanClean(provider: ServiceProvider): boolean {
   );
 
   return legacyType === "cleaning" || primaryType === "cleaning" || hasCleaningCapability;
+}
+
+function getProviderOfferedServiceTypes(provider: ServiceProvider): string[] {
+  const capabilityTypes = provider.capabilities
+    .filter((capability) => capability.active)
+    .map((capability) => normalizeProviderServiceType(capability.serviceType));
+
+  const fallbackTypes = [
+    normalizeProviderServiceType(provider.serviceType),
+    normalizeProviderServiceType(provider.primaryServiceType),
+  ].filter((value) => Boolean(value));
+
+  return Array.from(new Set([...capabilityTypes, ...fallbackTypes]));
+}
+
+function getAreaStatusLabel(status: TeamProviderAreaStatus): string {
+  if (status === "in_area") {
+    return "Services your area";
+  }
+
+  if (status === "out_of_area") {
+    return "Outside service area";
+  }
+
+  return "Location unknown";
 }
 
 function parseDollarStringToCents(value: string): number | null | "invalid" {
@@ -567,6 +628,20 @@ export default function HomePage() {
   const [savingServiceProvider, setSavingServiceProvider] = useState(false);
   const [serviceProviderError, setServiceProviderError] = useState("");
   const [serviceProviderSuccess, setServiceProviderSuccess] = useState("");
+  const [teamMembers, setTeamMembers] = useState<OwnerTeamMember[]>([]);
+  const [availableTeamProviders, setAvailableTeamProviders] = useState<AvailableTeamProvider[]>(
+    []
+  );
+  const [loadingTeamProviders, setLoadingTeamProviders] = useState(true);
+  const [teamProviderError, setTeamProviderError] = useState("");
+  const [teamProviderSuccess, setTeamProviderSuccess] = useState("");
+  const [activeAddProviderId, setActiveAddProviderId] = useState<string | null>(null);
+  const [activeEditProviderId, setActiveEditProviderId] = useState<string | null>(null);
+  const [teamFlatRateDollars, setTeamFlatRateDollars] = useState("");
+  const [teamHourlyRateDollars, setTeamHourlyRateDollars] = useState("");
+  const [teamPricingNotes, setTeamPricingNotes] = useState("");
+  const [savingTeamProviderId, setSavingTeamProviderId] = useState("");
+  const [showProviderCreationForm, setShowProviderCreationForm] = useState(false);
 
   const [providerName, setProviderName] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -1022,6 +1097,205 @@ export default function HomePage() {
     }
   }, []);
 
+  const loadTeamProviders = useCallback(async () => {
+    if (!currentOwnerProfile || inviteCodeBlocked) {
+      setLoadingTeamProviders(false);
+      return;
+    }
+
+    setLoadingTeamProviders(true);
+    setTeamProviderError("");
+
+    try {
+      const response = await fetch("/api/owner-team/providers");
+      const data = (await response.json()) as OwnerTeamProvidersResponse | CalendarSyncError;
+
+      if (!response.ok) {
+        setTeamProviderError((data as CalendarSyncError).error || "Failed to load team providers.");
+        return;
+      }
+
+      setTeamMembers((data as OwnerTeamProvidersResponse).teamMembers);
+      setAvailableTeamProviders((data as OwnerTeamProvidersResponse).availableProviders);
+    } catch {
+      setTeamProviderError("Failed to load team providers.");
+    } finally {
+      setLoadingTeamProviders(false);
+    }
+  }, [currentOwnerProfile, inviteCodeBlocked]);
+
+  function resetTeamPricingForm() {
+    setTeamFlatRateDollars("");
+    setTeamHourlyRateDollars("");
+    setTeamPricingNotes("");
+  }
+
+  function startAddProvider(providerId: string) {
+    setActiveEditProviderId(null);
+    setActiveAddProviderId(providerId);
+    resetTeamPricingForm();
+    setTeamProviderError("");
+    setTeamProviderSuccess("");
+  }
+
+  function startEditProvider(member: OwnerTeamMember) {
+    setActiveAddProviderId(null);
+    setActiveEditProviderId(member.serviceProviderId);
+    setTeamFlatRateDollars(
+      member.cleaningFlatRateCents !== null ? (member.cleaningFlatRateCents / 100).toFixed(2) : ""
+    );
+    setTeamHourlyRateDollars(
+      member.cleaningHourlyRateCents !== null ? (member.cleaningHourlyRateCents / 100).toFixed(2) : ""
+    );
+    setTeamPricingNotes(member.pricingNotes ?? "");
+    setTeamProviderError("");
+    setTeamProviderSuccess("");
+  }
+
+  function closeProviderPricingPanel() {
+    setActiveAddProviderId(null);
+    setActiveEditProviderId(null);
+    resetTeamPricingForm();
+  }
+
+  async function handleAddProviderToTeam(providerId: string) {
+    setSavingTeamProviderId(providerId);
+    setTeamProviderError("");
+    setTeamProviderSuccess("");
+
+    try {
+      const flatRateCents = parseDollarStringToCents(teamFlatRateDollars);
+      const hourlyRateCents = parseDollarStringToCents(teamHourlyRateDollars);
+
+      if (flatRateCents === "invalid" || hourlyRateCents === "invalid") {
+        setTeamProviderError("Please enter valid dollar amounts for pricing fields.");
+        return;
+      }
+
+      const response = await fetch("/api/owner-team/providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serviceProviderId: providerId,
+          cleaningFlatRateCents: flatRateCents,
+          cleaningHourlyRateCents: hourlyRateCents,
+          pricingNotes: teamPricingNotes,
+        }),
+      });
+
+      const data = (await response.json()) as TeamProviderResponse | CalendarSyncError;
+
+      if (!response.ok) {
+        setTeamProviderError((data as CalendarSyncError).error || "Failed to add provider to team.");
+        return;
+      }
+
+      setTeamProviderSuccess("Provider added to your team.");
+      closeProviderPricingPanel();
+      await loadTeamProviders();
+    } catch {
+      setTeamProviderError("Failed to add provider to team.");
+    } finally {
+      setSavingTeamProviderId("");
+    }
+  }
+
+  async function handleSaveTeamProviderPricing(providerId: string) {
+    setSavingTeamProviderId(providerId);
+    setTeamProviderError("");
+    setTeamProviderSuccess("");
+
+    try {
+      const flatRateCents = parseDollarStringToCents(teamFlatRateDollars);
+      const hourlyRateCents = parseDollarStringToCents(teamHourlyRateDollars);
+
+      if (flatRateCents === "invalid" || hourlyRateCents === "invalid") {
+        setTeamProviderError("Please enter valid dollar amounts for pricing fields.");
+        return;
+      }
+
+      const response = await fetch(`/api/owner-team/providers/${providerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cleaningFlatRateCents: flatRateCents,
+          cleaningHourlyRateCents: hourlyRateCents,
+          pricingNotes: teamPricingNotes,
+        }),
+      });
+
+      const data = (await response.json()) as TeamProviderResponse | CalendarSyncError;
+
+      if (!response.ok) {
+        setTeamProviderError((data as CalendarSyncError).error || "Failed to update provider pricing.");
+        return;
+      }
+
+      setTeamProviderSuccess("Provider pricing updated.");
+      closeProviderPricingPanel();
+      await loadTeamProviders();
+    } catch {
+      setTeamProviderError("Failed to update provider pricing.");
+    } finally {
+      setSavingTeamProviderId("");
+    }
+  }
+
+  async function handleDeactivateTeamProvider(providerId: string) {
+    setSavingTeamProviderId(providerId);
+    setTeamProviderError("");
+    setTeamProviderSuccess("");
+
+    try {
+      const response = await fetch(`/api/owner-team/providers/${providerId}`, {
+        method: "DELETE",
+      });
+
+      const data = (await response.json()) as { success?: boolean; error?: string };
+
+      if (!response.ok) {
+        setTeamProviderError(data.error || "Failed to deactivate provider.");
+        return;
+      }
+
+      setTeamProviderSuccess("Provider removed from your active team.");
+      closeProviderPricingPanel();
+      await loadTeamProviders();
+    } catch {
+      setTeamProviderError("Failed to deactivate provider.");
+    } finally {
+      setSavingTeamProviderId("");
+    }
+  }
+
+  async function handleActivateTeamProvider(providerId: string) {
+    setSavingTeamProviderId(providerId);
+    setTeamProviderError("");
+    setTeamProviderSuccess("");
+
+    try {
+      const response = await fetch(`/api/owner-team/providers/${providerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: true }),
+      });
+
+      const data = (await response.json()) as TeamProviderResponse | CalendarSyncError;
+
+      if (!response.ok) {
+        setTeamProviderError((data as CalendarSyncError).error || "Failed to activate provider.");
+        return;
+      }
+
+      setTeamProviderSuccess("Provider reactivated.");
+      await loadTeamProviders();
+    } catch {
+      setTeamProviderError("Failed to activate provider.");
+    } finally {
+      setSavingTeamProviderId("");
+    }
+  }
+
   useEffect(() => {
     let isActive = true;
 
@@ -1099,6 +1373,7 @@ export default function HomePage() {
 
       void loadProperties();
       void loadServiceProviders();
+      void loadTeamProviders();
       void loadOwnerNotifications();
     }
 
@@ -1113,6 +1388,7 @@ export default function HomePage() {
     loadOwnerNotifications,
     loadProperties,
     loadServiceProviders,
+    loadTeamProviders,
   ]);
 
   const refreshOwnerDashboardData = useCallback(async () => {
@@ -2700,149 +2976,395 @@ export default function HomePage() {
         ) : null}
 
         {ownerActiveTab === "providers" ? (
-          <section className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-slate-900">Service providers</h3>
-            <button
-              type="button"
-              onClick={() => void loadServiceProviders()}
-              disabled={loadingServiceProviders}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loadingServiceProviders ? "Refreshing..." : "Refresh providers"}
-            </button>
-          </div>
-
-          <ServiceProviderForm
-            providerName={providerName}
-            setProviderName={setProviderName}
-            companyName={companyName}
-            setCompanyName={setCompanyName}
-            email={email}
-            setEmail={setEmail}
-            phone={phone}
-            setPhone={setPhone}
-            capabilities={capabilities}
-            setCapabilities={setCapabilities}
-            primaryServiceType={primaryServiceType}
-            setPrimaryServiceType={setPrimaryServiceType}
-            baseAddress={baseAddress}
-            setBaseAddress={setBaseAddress}
-            baseCity={baseCity}
-            setBaseCity={setBaseCity}
-            baseState={baseState}
-            setBaseState={setBaseState}
-            baseZipCode={baseZipCode}
-            setBaseZipCode={setBaseZipCode}
-            serviceRadiusMiles={serviceRadiusMiles}
-            setServiceRadiusMiles={setServiceRadiusMiles}
-            serviceAreaNotes={serviceAreaNotes}
-            setServiceAreaNotes={setServiceAreaNotes}
-            baseRateDollars={baseRateDollars}
-            setBaseRateDollars={setBaseRateDollars}
-            hourlyRateDollars={hourlyRateDollars}
-            setHourlyRateDollars={setHourlyRateDollars}
-            notes={providerNotes}
-            setNotes={setProviderNotes}
-            loading={savingServiceProvider}
-            onSubmit={handleSaveServiceProvider}
-          />
-
-          {loadingServiceProviders ? (
-            <EmptyState
-              variant="loading"
-              title="Loading providers"
-              message="Fetching available providers."
-            />
-          ) : null}
-
-          {serviceProviderError ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {serviceProviderError}
-            </p>
-          ) : null}
-
-          {serviceProviderSuccess ? (
-            <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {serviceProviderSuccess}
-            </p>
-          ) : null}
-
-          {!loadingServiceProviders && serviceProviders.length === 0 ? (
-            <EmptyState
-              title="No providers assigned"
-              message="Assign a provider to start routing jobs."
-              actionLabel="Assign a provider"
-              onAction={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            />
-          ) : null}
-
-          {serviceProviders.length > 0 ? (
-            <div className="grid gap-3 md:grid-cols-2">
-              {serviceProviders.map((provider) => (
-                <article
-                  key={provider.id}
-                  className="space-y-1 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-                >
-                  <p className="text-sm font-semibold text-slate-900">{provider.name}</p>
-                  {provider.companyName ? (
-                    <p className="text-sm text-slate-700">Company: {provider.companyName}</p>
-                  ) : null}
-                  <p className="text-sm text-slate-700">
-                    Primary service: {formatServiceTypeLabel(provider.primaryServiceType ?? provider.serviceType)}
-                  </p>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {provider.capabilities
-                      .filter((capability) => capability.active)
-                      .map((capability) => (
-                        <span
-                          key={capability.id}
-                          className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700"
-                        >
-                          {formatServiceTypeLabel(capability.serviceType)}
-                        </span>
-                      ))}
-                  </div>
-                  {provider.email ? (
-                    <p className="text-sm text-slate-700">Email: {provider.email}</p>
-                  ) : null}
-                  {provider.phone ? (
-                    <p className="text-sm text-slate-700">Phone: {provider.phone}</p>
-                  ) : null}
-                  {provider.baseCity || provider.baseState || provider.baseZipCode ? (
-                    <p className="text-sm text-slate-700">
-                      Service area: {[provider.baseCity, provider.baseState, provider.baseZipCode]
-                        .filter((value) => Boolean(value))
-                        .join(", ")}
-                    </p>
-                  ) : null}
-                  {provider.serviceRadiusMiles !== null ? (
-                    <p className="text-sm text-slate-700">Radius: {provider.serviceRadiusMiles} miles</p>
-                  ) : null}
-                  {provider.serviceAreaNotes ? (
-                    <p className="text-sm text-slate-700">Area notes: {provider.serviceAreaNotes}</p>
-                  ) : null}
-                  {provider.baseRateCents !== null ? (
-                    <p className="text-sm text-slate-700">Base rate: {formatCentsToDollars(provider.baseRateCents)}</p>
-                  ) : null}
-                  {provider.hourlyRateCents !== null ? (
-                    <p className="text-sm text-slate-700">Hourly rate: {formatCentsToDollars(provider.hourlyRateCents)}</p>
-                  ) : null}
-                  {provider.ratingAverage !== null ? (
-                    <p className="text-sm text-slate-700">
-                      Rating: {provider.ratingAverage.toFixed(1)} ({provider.ratingCount})
-                    </p>
-                  ) : null}
-                  {provider.notes ? (
-                    <p className="text-sm text-slate-700">Notes: {provider.notes}</p>
-                  ) : null}
-                  <p className="text-sm text-slate-700">
-                    Status: {provider.active ? "Active" : "Inactive"}
-                  </p>
-                </article>
-              ))}
+          <section className="space-y-5" style={{ fontFamily: "Georgia, Palatino, serif" }}>
+            <div className="space-y-1">
+              <h2 className="font-serif text-3xl font-bold text-[#0D1B2A]">My Team</h2>
+              <p className="text-base text-[#7A7060]">
+                Choose trusted providers for cleaning, maintenance, restock, inspections, laundry, and trash.
+              </p>
             </div>
-          ) : null}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void loadTeamProviders()}
+                disabled={loadingTeamProviders}
+                className="rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loadingTeamProviders ? "Refreshing..." : "Refresh team"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowProviderCreationForm((previous) => !previous)}
+                className="rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm font-medium text-[#7A7060] transition hover:bg-[#FAF7F2]"
+              >
+                {showProviderCreationForm ? "Hide advanced provider creation" : "Advanced: Create provider profile"}
+              </button>
+            </div>
+
+            {teamProviderError ? (
+              <p className="rounded-lg border border-[#F2C2BD] bg-[#FDECEC] px-4 py-3 text-sm text-[#B42318]">
+                {teamProviderError}
+              </p>
+            ) : null}
+
+            {teamProviderSuccess ? (
+              <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {teamProviderSuccess}
+              </p>
+            ) : null}
+
+            <section className="space-y-3">
+              <h3 className="font-serif text-xl font-semibold text-[#0D1B2A]">My Team</h3>
+
+              {loadingTeamProviders ? (
+                <EmptyState
+                  variant="loading"
+                  title="Loading your team"
+                  message="Fetching owner team providers."
+                />
+              ) : teamMembers.length === 0 ? (
+                <div className="rounded-[12px] border-2 border-dashed border-[#E5E0D8] bg-[#FAF7F2] p-6 text-center">
+                  <h4 className="font-serif text-lg font-semibold text-[#0D1B2A]">No providers on your team yet.</h4>
+                  <p className="mt-1 text-sm text-[#7A7060]">Add service providers below to start assigning work.</p>
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {teamMembers.map((member) => {
+                    const provider = member.serviceProvider;
+                    const offeredServices = getProviderOfferedServiceTypes(provider);
+                    const isEditingPricing = activeEditProviderId === provider.id;
+
+                    return (
+                      <article
+                        key={member.id}
+                        className="space-y-3 rounded-[14px] border border-[#E5E0D8] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                      >
+                        <div className="space-y-1">
+                          <p className="font-serif text-lg font-semibold text-[#0D1B2A]">{provider.name}</p>
+                          <p className="text-sm text-[#7A7060]">Status: {member.isActive ? "Active" : "Inactive"}</p>
+                          <p
+                            className={`text-sm font-medium ${
+                              member.areaStatus === "in_area"
+                                ? "text-[#1A6B60]"
+                                : member.areaStatus === "out_of_area"
+                                  ? "text-[#D97706]"
+                                  : "text-[#7A7060]"
+                            }`}
+                          >
+                            {getAreaStatusLabel(member.areaStatus)}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {offeredServices.map((serviceType) => (
+                            <span
+                              key={`${member.id}-${serviceType}`}
+                              className="rounded-full bg-[#0D1B2A] px-2.5 py-1 text-xs font-medium text-[#FAF7F2]"
+                            >
+                              {formatServiceTypeLabel(serviceType)}
+                            </span>
+                          ))}
+                        </div>
+
+                        {(provider.baseCity || provider.baseState || provider.baseZipCode) ? (
+                          <p className="text-sm text-[#7A7060]">
+                            Service area: {[provider.baseCity, provider.baseState, provider.baseZipCode].filter(Boolean).join(", ")}
+                          </p>
+                        ) : null}
+
+                        {provider.serviceRadiusMiles !== null ? (
+                          <p className="text-sm text-[#7A7060]">Radius: {provider.serviceRadiusMiles} miles</p>
+                        ) : null}
+
+                        {provider.email ? (
+                          <p className="text-sm text-[#7A7060]">Email: {provider.email}</p>
+                        ) : provider.phone ? (
+                          <p className="text-sm text-[#7A7060]">Phone: {provider.phone}</p>
+                        ) : null}
+
+                        <p className="text-sm text-[#1A1208]">
+                          Cleaning price: {member.cleaningFlatRateCents !== null ? formatCentsToDollars(member.cleaningFlatRateCents) : "Not set"}
+                        </p>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEditProvider(member)}
+                            className="rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2]"
+                          >
+                            Edit price
+                          </button>
+
+                          {member.isActive ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleDeactivateTeamProvider(provider.id)}
+                              disabled={savingTeamProviderId === provider.id}
+                              className="rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm font-medium text-[#D97706] transition hover:bg-[#FFF4E5] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Remove from team
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => void handleActivateTeamProvider(provider.id)}
+                              disabled={savingTeamProviderId === provider.id}
+                              className="rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm font-medium text-[#1A6B60] transition hover:bg-[#E8F4F1] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Activate
+                            </button>
+                          )}
+                        </div>
+
+                        {isEditingPricing ? (
+                          <div className="space-y-3 rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] p-3">
+                            <p className="text-sm font-semibold text-[#0D1B2A]">Edit cleaning price</p>
+                            <label className="block space-y-1">
+                              <span className="text-sm text-[#1A1208]">Cleaning flat rate ($)</span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={teamFlatRateDollars}
+                                onChange={(event) => setTeamFlatRateDollars(event.target.value)}
+                                className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
+                                placeholder="150.00"
+                              />
+                            </label>
+
+                            <label className="block space-y-1">
+                              <span className="text-sm text-[#1A1208]">Cleaning hourly rate ($)</span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={teamHourlyRateDollars}
+                                onChange={(event) => setTeamHourlyRateDollars(event.target.value)}
+                                className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
+                                placeholder="Optional"
+                              />
+                            </label>
+
+                            <label className="block space-y-1">
+                              <span className="text-sm text-[#1A1208]">Pricing notes</span>
+                              <textarea
+                                rows={2}
+                                value={teamPricingNotes}
+                                onChange={(event) => setTeamPricingNotes(event.target.value)}
+                                className="w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
+                                placeholder="Optional"
+                              />
+                            </label>
+
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={closeProviderPricingPanel}
+                                className="rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2]"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleSaveTeamProviderPricing(provider.id)}
+                                disabled={savingTeamProviderId === provider.id}
+                                className="rounded-[10px] bg-[#0D1B2A] px-3 py-2 text-sm font-medium text-[#FAF7F2] transition hover:bg-[#13293D] disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Save Price
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-3">
+              <h3 className="font-serif text-xl font-semibold text-[#0D1B2A]">Available Providers</h3>
+
+              {loadingTeamProviders ? null : availableTeamProviders.length === 0 ? (
+                <div className="rounded-[12px] border-2 border-dashed border-[#E5E0D8] bg-[#FAF7F2] p-6 text-center">
+                  <h4 className="font-serif text-lg font-semibold text-[#0D1B2A]">No available providers found.</h4>
+                  <p className="mt-1 text-sm text-[#7A7060]">Providers will appear here when they are active and service your area.</p>
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {availableTeamProviders.map((available) => {
+                    const provider = available.provider;
+                    const offeredServices = getProviderOfferedServiceTypes(provider);
+                    const isAdding = activeAddProviderId === provider.id;
+                    const isOutOfArea = available.areaStatus === "out_of_area";
+
+                    return (
+                      <article
+                        key={provider.id}
+                        className="space-y-3 rounded-[14px] border border-[#E5E0D8] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                      >
+                        <div className="space-y-1">
+                          <p className="font-serif text-lg font-semibold text-[#0D1B2A]">{provider.name}</p>
+                          <p
+                            className={`text-sm font-medium ${
+                              available.areaStatus === "in_area"
+                                ? "text-[#1A6B60]"
+                                : available.areaStatus === "out_of_area"
+                                  ? "text-[#D97706]"
+                                  : "text-[#7A7060]"
+                            }`}
+                          >
+                            {getAreaStatusLabel(available.areaStatus)}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {offeredServices.map((serviceType) => (
+                            <span
+                              key={`${provider.id}-${serviceType}`}
+                              className="rounded-full bg-[#0D1B2A] px-2.5 py-1 text-xs font-medium text-[#FAF7F2]"
+                            >
+                              {formatServiceTypeLabel(serviceType)}
+                            </span>
+                          ))}
+                        </div>
+
+                        {(provider.baseCity || provider.baseState || provider.baseZipCode) ? (
+                          <p className="text-sm text-[#7A7060]">
+                            Service area: {[provider.baseCity, provider.baseState, provider.baseZipCode].filter(Boolean).join(", ")}
+                          </p>
+                        ) : null}
+
+                        {provider.serviceRadiusMiles !== null ? (
+                          <p className="text-sm text-[#7A7060]">Radius: {provider.serviceRadiusMiles} miles</p>
+                        ) : null}
+
+                        <button
+                          type="button"
+                          onClick={() => startAddProvider(provider.id)}
+                          disabled={isOutOfArea}
+                          className={`rounded-[10px] px-3 py-2 text-sm font-medium transition ${
+                            isOutOfArea
+                              ? "cursor-not-allowed border border-[#E5E0D8] bg-white text-[#7A7060] opacity-60"
+                              : "bg-[#0D1B2A] text-[#FAF7F2] hover:bg-[#13293D]"
+                          }`}
+                        >
+                          {isOutOfArea ? "Outside service area" : "Add to Team"}
+                        </button>
+
+                        {isAdding ? (
+                          <div className="space-y-3 rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] p-3">
+                            <p className="text-sm font-semibold text-[#0D1B2A]">Add {provider.name} to your team</p>
+                            <label className="block space-y-1">
+                              <span className="text-sm text-[#1A1208]">Cleaning flat rate ($)</span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={teamFlatRateDollars}
+                                onChange={(event) => setTeamFlatRateDollars(event.target.value)}
+                                className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
+                                placeholder="150.00"
+                              />
+                            </label>
+
+                            <label className="block space-y-1">
+                              <span className="text-sm text-[#1A1208]">Cleaning hourly rate ($)</span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={teamHourlyRateDollars}
+                                onChange={(event) => setTeamHourlyRateDollars(event.target.value)}
+                                className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
+                                placeholder="Optional"
+                              />
+                            </label>
+
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={closeProviderPricingPanel}
+                                className="rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2]"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleAddProviderToTeam(provider.id)}
+                                disabled={savingTeamProviderId === provider.id}
+                                className="rounded-[10px] bg-[#0D1B2A] px-3 py-2 text-sm font-medium text-[#FAF7F2] transition hover:bg-[#13293D] disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Add to Team
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {showProviderCreationForm ? (
+              <section className="space-y-3 rounded-[14px] border border-[#E5E0D8] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                <h3 className="text-sm font-semibold text-[#0D1B2A]">Advanced provider profile creation</h3>
+
+                <ServiceProviderForm
+                  providerName={providerName}
+                  setProviderName={setProviderName}
+                  companyName={companyName}
+                  setCompanyName={setCompanyName}
+                  email={email}
+                  setEmail={setEmail}
+                  phone={phone}
+                  setPhone={setPhone}
+                  capabilities={capabilities}
+                  setCapabilities={setCapabilities}
+                  primaryServiceType={primaryServiceType}
+                  setPrimaryServiceType={setPrimaryServiceType}
+                  baseAddress={baseAddress}
+                  setBaseAddress={setBaseAddress}
+                  baseCity={baseCity}
+                  setBaseCity={setBaseCity}
+                  baseState={baseState}
+                  setBaseState={setBaseState}
+                  baseZipCode={baseZipCode}
+                  setBaseZipCode={setBaseZipCode}
+                  serviceRadiusMiles={serviceRadiusMiles}
+                  setServiceRadiusMiles={setServiceRadiusMiles}
+                  serviceAreaNotes={serviceAreaNotes}
+                  setServiceAreaNotes={setServiceAreaNotes}
+                  baseRateDollars={baseRateDollars}
+                  setBaseRateDollars={setBaseRateDollars}
+                  hourlyRateDollars={hourlyRateDollars}
+                  setHourlyRateDollars={setHourlyRateDollars}
+                  notes={providerNotes}
+                  setNotes={setProviderNotes}
+                  loading={savingServiceProvider}
+                  onSubmit={handleSaveServiceProvider}
+                />
+
+                {loadingServiceProviders ? (
+                  <EmptyState
+                    variant="loading"
+                    title="Loading providers"
+                    message="Fetching available providers."
+                  />
+                ) : null}
+
+                {serviceProviderError ? (
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {serviceProviderError}
+                  </p>
+                ) : null}
+
+                {serviceProviderSuccess ? (
+                  <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {serviceProviderSuccess}
+                  </p>
+                ) : null}
+              </section>
+            ) : null}
           </section>
         ) : null}
 
