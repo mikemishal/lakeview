@@ -50,7 +50,7 @@ npm install
 npm run build
 ```
 
-## Scheduled Calendar Sync (Every 6 Hours)
+## Scheduled Calendar Sync
 
 This project includes a protected endpoint for background calendar sync:
 
@@ -63,10 +63,12 @@ Behavior:
 - Updates `calendarLastSyncedAt` only when a property sync succeeds.
 - Returns per-property success/error results.
 
-GitHub Actions scheduler:
+GitHub Actions workflow (manual-only):
 
 - Workflow: `.github/workflows/calendar-sync-6h.yml`
-- Schedule: every 6 hours (`0 */6 * * *`)
+- Automatic schedule is currently disabled.
+- Run manually via `workflow_dispatch` when needed.
+- Scheduled 6-hour calendar sync is temporarily disabled. We plan to replace this with Azure Function Timer Trigger or Azure WebJob.
 
 Required GitHub repository secrets:
 
