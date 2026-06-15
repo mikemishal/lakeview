@@ -691,7 +691,7 @@ export default function HomePage() {
     return result;
   })();
 
-  const futureNeedsAssignmentJobs = futureJobsInRange.filter(
+  const futureNeedsAssignmentJobs = futureJobsAll.filter(
     (job) => job.status === "needs_assignment"
   );
   const futureAssignedJobs = futureJobsInRange.filter((job) => job.status === "assigned");
