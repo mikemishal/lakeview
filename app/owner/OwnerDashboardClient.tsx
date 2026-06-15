@@ -714,13 +714,46 @@ export default function HomePage() {
     [router, searchParams]
   );
 
-  const cleanerProviders = serviceProviders
-    .filter((provider) => provider.active && providerCanClean(provider))
-    .map((provider) => ({
-      id: provider.id,
-      name: provider.name,
-      companyName: provider.companyName,
-    }));
+  // Get team providers filtered by service type
+  function getTeamProvidersForServiceType(serviceType: string): Array<{
+    id: string;
+    name: string;
+    companyName: string | null;
+    cleaningFlatRateCents: number | null;
+    cleaningHourlyRateCents: number | null;
+  }> {
+    const normalized = normalizeProviderServiceType(serviceType);
+    return teamMembers
+      .filter((member) => {
+        if (!member.isActive) return false;
+        const provider = member.serviceProvider;
+        const offeredServices = getProviderOfferedServiceTypes(provider);
+        return offeredServices.includes(normalized);
+      })
+      .map((member) => ({
+        id: member.serviceProviderId,
+        name: member.serviceProvider.name,
+        companyName: member.serviceProvider.companyName,
+        cleaningFlatRateCents: member.cleaningFlatRateCents,
+        cleaningHourlyRateCents: member.cleaningHourlyRateCents,
+      }));
+  }
+
+  const cleanerProviders = getTeamProvidersForServiceType("cleaning");
+
+  // Build providers list for AdHocJobForm (includes team members with pricing + regular providers)
+  const adHocJobProviders = (() => {
+    const teamsById = new Set(teamMembers.filter(m => m.isActive).map(m => m.serviceProviderId));
+    
+    return serviceProviders.map((provider) => {
+      const teamMember = teamMembers.find(m => m.serviceProviderId === provider.id && m.isActive);
+      return {
+        ...provider,
+        cleaningFlatRateCents: teamMember?.cleaningFlatRateCents ?? null,
+        cleaningHourlyRateCents: teamMember?.cleaningHourlyRateCents ?? null,
+      };
+    });
+  })();
 
   // Determine dashboard filter and label from URL
   const dashboardFilter = searchParams.get("dashboardFilter");
@@ -3437,7 +3470,7 @@ export default function HomePage() {
 
                   <AdHocJobForm
                     properties={properties}
-                    providers={serviceProviders}
+                    providers={adHocJobProviders}
                     loading={creatingAdHocJob}
                     onSubmit={handleCreateAdHocJob}
                     onCancel={() => {
