@@ -525,6 +525,7 @@ export default function HomePage() {
   const [creatingAdHocJob, setCreatingAdHocJob] = useState(false);
   const [adHocJobError, setAdHocJobError] = useState("");
   const [adHocJobSuccess, setAdHocJobSuccess] = useState("");
+  const [showCreateJob, setShowCreateJob] = useState(false);
   const [generatingJobsPropertyId, setGeneratingJobsPropertyId] = useState("");
   const [cleaningJobGenerationMessage, setCleaningJobGenerationMessage] = useState("");
   const [cleaningJobsView, setCleaningJobsView] = useState<"list" | "grouped" | "calendar">(
@@ -2846,9 +2847,7 @@ export default function HomePage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      adHocJobFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
+                    onClick={() => setShowCreateJob(true)}
                     className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#B8860B] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#9F7408]"
                   >
                     <span className="hidden sm:inline">+ New Job</span>
@@ -2857,26 +2856,43 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div ref={adHocJobFormRef} className="scroll-mt-4">
-                {adHocJobError ? (
-                  <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {adHocJobError}
-                  </p>
-                ) : null}
+              {showCreateJob ? (
+                <div ref={adHocJobFormRef} className="scroll-mt-4 space-y-3 rounded-[14px] border border-[#E5E0D8] bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-semibold text-[#0D1B2A]">Create a new job</h4>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCreateJob(false);
+                        setAdHocJobError("");
+                        setAdHocJobSuccess("");
+                      }}
+                      className="rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-3 py-1.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-white"
+                    >
+                      Cancel
+                    </button>
+                  </div>
 
-                {adHocJobSuccess ? (
-                  <p className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    {adHocJobSuccess}
-                  </p>
-                ) : null}
+                  {adHocJobError ? (
+                    <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {adHocJobError}
+                    </p>
+                  ) : null}
 
-                <AdHocJobForm
-                  properties={properties}
-                  providers={serviceProviders}
-                  loading={creatingAdHocJob}
-                  onSubmit={handleCreateAdHocJob}
-                />
-              </div>
+                  {adHocJobSuccess ? (
+                    <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {adHocJobSuccess}
+                    </p>
+                  ) : null}
+
+                  <AdHocJobForm
+                    properties={properties}
+                    providers={serviceProviders}
+                    loading={creatingAdHocJob}
+                    onSubmit={handleCreateAdHocJob}
+                  />
+                </div>
+              ) : null}
 
               <section className="mt-6 rounded-[14px] border border-[#E5E0D8] bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
