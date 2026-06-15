@@ -57,6 +57,7 @@ model Property {
   trashInstructions String?
   petInfo           String?
   providerInstructions String?
+  calendarLastSyncedAt DateTime?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   calendarEvents    CalendarEvent[]

@@ -118,15 +118,16 @@ export default function PropertyForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="space-y-4 rounded-[14px] border border-[#E5E0D8] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] sm:p-5"
+      style={{ fontFamily: "Georgia, Palatino, serif" }}
     >
-      <h2 className="text-base font-semibold text-slate-900">{resolvedTitle}</h2>
+      <h2 className="font-serif text-xl font-semibold text-[#0D1B2A]">{resolvedTitle}</h2>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-slate-900">Basic details</h3>
+        <h3 className="text-sm font-semibold text-[#0D1B2A]">Basic details</h3>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1 md:col-span-2">
-            <label htmlFor="propertyName" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="propertyName" className="block text-sm font-medium text-[#1A1208]">
               Property name
             </label>
             <input
@@ -134,12 +135,12 @@ export default function PropertyForm({
               type="text"
               value={propertyName}
               onChange={(event) => setPropertyName(event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+              className="w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
             />
           </div>
 
           <div className="space-y-1 md:col-span-2">
-            <label htmlFor="propertyAddress" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="propertyAddress" className="block text-sm font-medium text-[#1A1208]">
               Address
             </label>
             <input
@@ -148,25 +149,26 @@ export default function PropertyForm({
               placeholder="Optional"
               value={propertyAddress}
               onChange={(event) => setPropertyAddress(event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+              className="w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] placeholder:text-[#7A7060] outline-none transition focus:border-[#B8860B]"
             />
           </div>
 
-          <div className="space-y-1 md:col-span-2">
-            <label htmlFor="airbnbCalendarUrl" className="block text-sm font-medium text-slate-700">
+          <div className="space-y-2 rounded-[10px] border border-[#F2D6A2] bg-[#FFF4E5] p-3 md:col-span-2">
+            <label htmlFor="airbnbCalendarUrl" className="block text-sm font-semibold text-[#9A5B00]">
               Airbnb calendar URL
             </label>
+            <p className="text-xs text-[#9A5B00]">Paste the private iCal URL from Airbnb to keep reservations in sync.</p>
             <input
               id="airbnbCalendarUrl"
               type="url"
               value={airbnbCalendarUrl}
               onChange={(event) => setAirbnbCalendarUrl(event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+              className="w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
             />
           </div>
 
           <div className="space-y-1 md:col-span-2">
-            <label htmlFor="listingUrl" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="listingUrl" className="block text-sm font-medium text-[#1A1208]">
               Listing URL
             </label>
             <input
@@ -175,12 +177,12 @@ export default function PropertyForm({
               placeholder="Optional"
               value={listingUrl}
               onChange={(event) => setListingUrl(event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+              className="w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] placeholder:text-[#7A7060] outline-none transition focus:border-[#B8860B]"
             />
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="propertyType" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="propertyType" className="block text-sm font-medium text-[#1A1208]">
               Property type
             </label>
             <input
@@ -189,12 +191,12 @@ export default function PropertyForm({
               placeholder="Optional"
               value={propertyType}
               onChange={(event) => setPropertyType(event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+              className="w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] placeholder:text-[#7A7060] outline-none transition focus:border-[#B8860B]"
             />
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="bedrooms" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="bedrooms" className="block text-sm font-medium text-[#1A1208]">
               Bedrooms
             </label>
             <input
@@ -205,12 +207,12 @@ export default function PropertyForm({
               placeholder="Optional"
               value={bedrooms}
               onChange={(event) => setBedrooms(event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+              className="w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] placeholder:text-[#7A7060] outline-none transition focus:border-[#B8860B]"
             />
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="bathrooms" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="bathrooms" className="block text-sm font-medium text-[#1A1208]">
               Bathrooms
             </label>
             <input
@@ -221,12 +223,12 @@ export default function PropertyForm({
               placeholder="Optional"
               value={bathrooms}
               onChange={(event) => setBathrooms(event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+              className="w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] placeholder:text-[#7A7060] outline-none transition focus:border-[#B8860B]"
             />
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="squareFeet" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="squareFeet" className="block text-sm font-medium text-[#1A1208]">
               Square feet
             </label>
             <input
@@ -237,12 +239,12 @@ export default function PropertyForm({
               placeholder="Optional"
               value={squareFeet}
               onChange={(event) => setSquareFeet(event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+              className="w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] placeholder:text-[#7A7060] outline-none transition focus:border-[#B8860B]"
             />
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="maxGuests" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="maxGuests" className="block text-sm font-medium text-[#1A1208]">
               Max guests
             </label>
             <input
@@ -253,7 +255,7 @@ export default function PropertyForm({
               placeholder="Optional"
               value={maxGuests}
               onChange={(event) => setMaxGuests(event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+              className="w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] placeholder:text-[#7A7060] outline-none transition focus:border-[#B8860B]"
             />
           </div>
         </div>
@@ -431,7 +433,7 @@ export default function PropertyForm({
       <button
         type="submit"
         disabled={isDisabled}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="min-h-11 rounded-[10px] bg-[#0D1B2A] px-4 py-2 text-sm font-medium text-[#FAF7F2] transition hover:bg-[#13293D] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? resolvedLoadingLabel : resolvedSubmitLabel}
       </button>
