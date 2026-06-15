@@ -1,14 +1,15 @@
-name: Calendar Sync Every 6 Hours
+name: Manual Calendar Sync
 
 on:
-  schedule:
-    - cron: "0 */6 * * *"
+  # Scheduled 6-hour calendar sync is temporarily disabled.
+  # We plan to replace this with Azure Function Timer Trigger or Azure WebJob.
   workflow_dispatch:
 
 jobs:
   sync-calendars:
     runs-on: ubuntu-latest
     steps:
+      # Automatic schedule disabled temporarily. Manual dispatch only.
       - name: Trigger protected calendar sync endpoint
         env:
           APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
