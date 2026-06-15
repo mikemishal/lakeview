@@ -42,6 +42,9 @@ export type CleaningJobItem = {
   maintenanceNeeded: boolean;
   restockNeeded: boolean;
   damageFound: boolean;
+  quotedPrice: string | null;
+  quotedPriceNotes: string | null;
+  quotedPriceSource: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -82,6 +85,7 @@ type CleanerProviderOption = {
 
 type CleaningJobCardProps = {
   job: CleaningJobItem;
+  onOpen?: (job: CleaningJobItem) => void;
   onStatusChange?: (jobId: string, status: string) => void;
   statusUpdating?: boolean;
   cleanerProviders?: CleanerProviderOption[];
@@ -257,17 +261,6 @@ function formatActivityDateTimeLabel(value: string): string {
   return activityDateTimeFormatter.format(parsed);
 }
 
-function toDateOnly(value: string | Date): string {
-  const parsed = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-
-  return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}-${String(
-    parsed.getUTCDate()
-  ).padStart(2, "0")}`;
-}
-
 function formatCentsToDollars(cents: number | null | undefined): string {
   if (typeof cents !== "number" || cents < 0) {
     return "Not set";
@@ -277,6 +270,7 @@ function formatCentsToDollars(cents: number | null | undefined): string {
 
 export default function CleaningJobCard({
   job,
+  onOpen,
   onStatusChange,
   statusUpdating = false,
   cleanerProviders = [],
@@ -291,6 +285,7 @@ export default function CleaningJobCard({
   onIssueFlagsChange,
   issueFlagsUpdating = false,
 }: CleaningJobCardProps) {
+  const [showAssignmentPanel, setShowAssignmentPanel] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [draftNotes, setDraftNotes] = useState(job.notes ?? "");
 
@@ -317,102 +312,43 @@ export default function CleaningJobCard({
     job.maintenanceNeeded || job.restockNeeded || job.damageFound;
   const isManualJob = job.jobSource === "manual";
   const isHighPriority = job.priority === "high" || job.priority === "urgent";
-  const isDueToday = toDateOnly(job.scheduledDate) === toDateOnly(new Date());
+  const propertyLabel = job.property?.name?.trim() || "Unknown property";
+  const cardTitle = `${formatRequestedServiceType(job.requestedServiceType)} · ${propertyLabel}`;
 
-  const primaryAction = (() => {
-    if (showOwnerActions) {
-      if (job.ownerSelfAssigned && job.status === "accepted") {
-        return {
-          label: "Start job",
-          onClick: () => onStatusChange?.(job.id, "in_progress"),
-          disabled: statusUpdating || !onStatusChange,
-        };
-      }
+  const assignmentOptions = (() => {
+    const options = [...cleanerProviders];
+    if (
+      job.assignedProviderId &&
+      job.assignedProvider &&
+      !options.some((provider) => provider.id === job.assignedProviderId)
+    ) {
+      options.unshift({
+        id: job.assignedProviderId,
+        name: `${job.assignedProvider.name} (legacy assignment)`,
+        companyName: job.assignedProvider.companyName,
+      });
+    }
+    return options;
+  })();
 
-      if (job.ownerSelfAssigned && job.status === "in_progress") {
-        return {
-          label: "Complete job",
-          onClick: () => onStatusChange?.(job.id, "completed"),
-          disabled: statusUpdating || !onStatusChange,
-        };
-      }
-
-      if (!job.ownerSelfAssigned && !job.assignedProviderId) {
-        return {
-          label: "Assign provider",
-          onClick: undefined,
-          disabled: false,
-        };
-      }
-
-      if (job.status === "completed") {
-        return {
-          label: "View details",
-          onClick: undefined,
-          disabled: false,
-        };
-      }
-
-      if (job.status === "cancelled") {
-        return {
-          label: "View details",
-          onClick: undefined,
-          disabled: false,
-        };
-      }
-
-      return {
-        label: "View details",
-        onClick: undefined,
-        disabled: false,
-      };
+  const priceDisplay = (() => {
+    if (job.requestedServiceType !== "cleaning") {
+      return <span className="text-[#7A7060]">Price setup later</span>;
     }
 
-    if (showCleanerActions) {
-      if (job.status === "assigned") {
-        return {
-          label: "Accept job",
-          onClick: () => onStatusChange?.(job.id, "accepted"),
-          disabled: statusUpdating || !onStatusChange,
-        };
-      }
+    const quotedPriceDollars =
+      typeof job.quotedPrice === "string" ? Number(job.quotedPrice) : null;
 
-      if (job.status === "accepted" && isDueToday) {
-        return {
-          label: "Start job",
-          onClick: () => onStatusChange?.(job.id, "in_progress"),
-          disabled: statusUpdating || !onStatusChange,
-        };
-      }
-
-      if (job.status === "in_progress") {
-        return {
-          label: "Complete job",
-          onClick: () => onStatusChange?.(job.id, "completed"),
-          disabled: statusUpdating || !onStatusChange,
-        };
-      }
-
-      if (job.status === "accepted") {
-        return {
-          label: "View details",
-          onClick: undefined,
-          disabled: false,
-        };
-      }
-
-      return {
-        label: "View details",
-        onClick: undefined,
-        disabled: false,
-      };
+    if (typeof quotedPriceDollars === "number" && Number.isFinite(quotedPriceDollars) && quotedPriceDollars >= 0) {
+      return `$${quotedPriceDollars.toFixed(2)}`;
     }
 
-    return {
-      label: "View details",
-      onClick: undefined,
-      disabled: false,
-    };
+    const teamRate = cleanerProviders.find((provider) => provider.id === job.assignedProviderId)?.cleaningFlatRateCents;
+    if (typeof teamRate === "number" && teamRate >= 0) {
+      return formatCentsToDollars(teamRate);
+    }
+
+    return <span className="text-[#D97706]">Price not set</span>;
   })();
 
   function handleEditNotes() {
@@ -443,7 +379,7 @@ export default function CleaningJobCard({
       <div className="border-b border-[#E5E0D8] bg-[#FAF7F2]/70 px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-2">
-            <h3 className="font-serif text-base font-semibold text-[#0D1B2A]">{job.title}</h3>
+            <h3 className="font-serif text-base font-semibold text-[#0D1B2A]">{cardTitle}</h3>
             <div className="flex flex-wrap gap-2">
               <span className="inline-flex rounded-full bg-[#E8F4F1] px-3 py-1 text-xs font-medium text-[#0F6A5F]">
                 {formatRequestedServiceType(job.requestedServiceType)}
@@ -467,18 +403,11 @@ export default function CleaningJobCard({
       <div className="space-y-4 p-5">
         <div className="grid gap-3 text-sm text-[#7A7060] sm:grid-cols-2 xl:grid-cols-4">
           <p><span className="font-medium text-[#0D1B2A]">Scheduled:</span> {formatDateLabel(job.scheduledDate)}</p>
+          {job.dueTime ? <p><span className="font-medium text-[#0D1B2A]">Time:</span> {job.dueTime}</p> : null}
           <p><span className="font-medium text-[#0D1B2A]">Service:</span> {formatRequestedServiceType(job.requestedServiceType)}</p>
           <p><span className="font-medium text-[#0D1B2A]">Priority:</span> {formatPriority(job.priority)}</p>
-          {job.dueTime ? <p><span className="font-medium text-[#0D1B2A]">Due time:</span> {job.dueTime}</p> : null}
           {job.estimatedDurationMinutes !== null ? <p><span className="font-medium text-[#0D1B2A]">Duration:</span> {job.estimatedDurationMinutes} min</p> : null}
-          {job.requestedServiceType === "cleaning" && job.assignedProviderId && job.assignedProvider ? (
-            <p>
-              <span className="font-medium text-[#0D1B2A]">Price:</span>{" "}
-              {cleanerProviders.find((p) => p.id === job.assignedProviderId)?.cleaningFlatRateCents
-                ? formatCentsToDollars(cleanerProviders.find((p) => p.id === job.assignedProviderId)?.cleaningFlatRateCents)
-                : <span className="text-[#D97706]">Price not set</span>}
-            </p>
-          ) : null}
+          <p><span className="font-medium text-[#0D1B2A]">Price:</span> {priceDisplay}</p>
         </div>
 
         {job.ownerInstructions ? (
@@ -488,7 +417,7 @@ export default function CleaningJobCard({
         ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <p className="text-sm text-[#7A7060]"><span className="font-medium text-[#0D1B2A]">Assigned to:</span> {job.assignedProvider ? job.assignedProvider.name : "Needs provider"}</p>
+          <p className="text-sm text-[#7A7060]"><span className="font-medium text-[#0D1B2A]">Assigned to:</span> {job.assignedProvider ? job.assignedProvider.name : "Unassigned"}</p>
           {job.assignedProvider?.companyName ? <p className="text-sm text-[#7A7060]"><span className="font-medium text-[#0D1B2A]">Company:</span> {job.assignedProvider.companyName}</p> : null}
           {job.ownerSelfAssigned ? <p className="text-sm text-[#7A7060]"><span className="font-medium text-[#0D1B2A]">Owner status:</span> Self-assigned by owner</p> : null}
         </div>
@@ -496,17 +425,24 @@ export default function CleaningJobCard({
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
-            onClick={primaryAction.onClick}
-            disabled={primaryAction.disabled}
+            onClick={() => onOpen?.(job)}
             className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[#0D1B2A] px-5 py-2.5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(13,27,42,0.12)] transition hover:bg-[#14243A] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
-            {primaryAction.label}
+            Open
           </button>
+          {showOwnerActions ? (
+            <button
+              type="button"
+              onClick={() => setShowAssignmentPanel((previous) => !previous)}
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[#E5E0D8] bg-white px-5 py-2.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2] sm:w-auto"
+            >
+              {job.assignedProviderId ? "Change Assignment" : "Assign"}
+            </button>
+          ) : null}
         </div>
 
-        <details className="rounded-[12px] border border-[#E5E0D8] bg-[#FAF7F2] p-4">
-          <summary className="cursor-pointer text-sm font-medium text-[#0D1B2A]">More</summary>
-          <div className="mt-4 space-y-4">
+        {showAssignmentPanel ? (
+          <div className="space-y-4 rounded-[12px] border border-[#E5E0D8] bg-[#FAF7F2] p-4">
             <div className="space-y-2">
               <label htmlFor={`cleaning-job-provider-${job.id}`} className="block text-sm font-medium text-[#0D1B2A]">Assigned provider</label>
               <select
@@ -521,15 +457,16 @@ export default function CleaningJobCard({
                 disabled={providerUpdating}
                 className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#0D1B2A] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <option value="">
-                  {cleanerProviders.length === 0 ? "No team providers available" : "Needs provider"}
-                </option>
-                {cleanerProviders.map((provider) => {
-                  const priceLabel = provider.cleaningFlatRateCents
-                    ? ` — ${formatCentsToDollars(provider.cleaningFlatRateCents)}`
-                    : provider.cleaningHourlyRateCents
-                    ? ` — $${(provider.cleaningHourlyRateCents / 100).toFixed(2)}/hr`
-                    : " — Price not set";
+                <option value="">{assignmentOptions.length === 0 ? "No team providers available" : "Unassigned"}</option>
+                {assignmentOptions.map((provider) => {
+                  const priceLabel =
+                    job.requestedServiceType === "cleaning"
+                      ? provider.cleaningFlatRateCents
+                        ? ` — ${formatCentsToDollars(provider.cleaningFlatRateCents)}`
+                        : provider.cleaningHourlyRateCents
+                          ? ` — $${(provider.cleaningHourlyRateCents / 100).toFixed(2)}/hr`
+                          : " — Price not set"
+                      : "";
                   const providerLabel = provider.companyName
                     ? `${provider.name} (${provider.companyName})`
                     : provider.name;
@@ -640,7 +577,7 @@ export default function CleaningJobCard({
               </div>
             ) : null}
           </div>
-        </details>
+        ) : null}
       </div>
     </article>
   );

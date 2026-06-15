@@ -15,6 +15,28 @@ type AssignProviderBody = {
   providerId?: string | null;
 };
 
+function providerCanHandleServiceType(
+  provider: {
+    serviceType: string;
+    primaryServiceType: string | null;
+    capabilities: { serviceType: string; active: boolean }[];
+  },
+  requestedServiceType: string
+): boolean {
+  const normalizedRequested = normalizeServiceType(requestedServiceType);
+  const providerServiceType = normalizeServiceType(provider.serviceType);
+  const providerPrimaryType = normalizeServiceType(provider.primaryServiceType);
+
+  return (
+    providerServiceType === normalizedRequested ||
+    providerPrimaryType === normalizedRequested ||
+    provider.capabilities.some(
+      (capability) =>
+        capability.active && normalizeServiceType(capability.serviceType) === normalizedRequested
+    )
+  );
+}
+
 function normalizeServiceType(value: string | null | undefined): string {
   const normalized = value?.trim().toLowerCase() ?? "";
   if (normalized === "cleaner") {
@@ -57,19 +79,13 @@ export async function PATCH(request: Request, context: RouteContext) {
         },
       });
 
-      const providerCanClean = Boolean(
-        provider &&
-          (normalizeServiceType(provider.serviceType) === "cleaning" ||
-            normalizeServiceType(provider.primaryServiceType) === "cleaning" ||
-            provider.capabilities.some(
-              (capability) =>
-                capability.active && normalizeServiceType(capability.serviceType) === "cleaning"
-            ))
+      const providerCanHandleRequestedType = Boolean(
+        provider && providerCanHandleServiceType(provider, existingJob.requestedServiceType)
       );
 
-      if (!provider || !provider.active || !providerCanClean) {
+      if (!provider || !provider.active || !providerCanHandleRequestedType) {
         return NextResponse.json(
-          { error: "Valid cleaning provider is required." },
+          { error: "Valid provider with matching service type is required." },
           { status: 400 }
         );
       }
@@ -82,6 +98,10 @@ export async function PATCH(request: Request, context: RouteContext) {
             serviceProviderId: providerId,
           },
         },
+        select: {
+          isActive: true,
+          cleaningFlatRateCents: true,
+        },
       });
 
       if (!teamMember || !teamMember.isActive) {
@@ -91,12 +111,30 @@ export async function PATCH(request: Request, context: RouteContext) {
         );
       }
 
+      const hasCustomPrice =
+        existingJob.quotedPrice !== null &&
+        (existingJob.quotedPriceSource === "custom_job_price" ||
+          existingJob.quotedPriceSource === "manual_override");
+      const shouldApplyTeamPrice =
+        !hasCustomPrice && normalizeServiceType(existingJob.requestedServiceType) === "cleaning";
+      const nextQuotedPrice =
+        shouldApplyTeamPrice && teamMember.cleaningFlatRateCents !== null
+          ? teamMember.cleaningFlatRateCents / 100
+          : null;
+
       const cleaningJob = await prisma.cleaningJob.update({
         where: { id: jobId },
         data: {
           assignedProviderId: providerId,
           ownerSelfAssigned: false,
           status: "assigned",
+          ...(shouldApplyTeamPrice
+            ? {
+                quotedPrice: nextQuotedPrice,
+                quotedPriceSource:
+                  nextQuotedPrice !== null ? "team_cleaning_flat_rate" : null,
+              }
+            : {}),
         },
         include: {
           calendarEvent: true,
@@ -118,12 +156,23 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ cleaningJob });
     }
 
+    const hasCustomPrice =
+      existingJob.quotedPrice !== null &&
+      (existingJob.quotedPriceSource === "custom_job_price" ||
+        existingJob.quotedPriceSource === "manual_override");
+
     const cleaningJob = await prisma.cleaningJob.update({
       where: { id: jobId },
       data: {
         assignedProviderId: null,
         ownerSelfAssigned: false,
         status: "needs_assignment",
+        ...(hasCustomPrice
+          ? {}
+          : {
+              quotedPrice: null,
+              quotedPriceSource: null,
+            }),
       },
       include: {
         calendarEvent: true,

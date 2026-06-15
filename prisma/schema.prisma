@@ -146,6 +146,9 @@ model CleaningJob {
   maintenanceNeeded Boolean      @default(false)
   restockNeeded     Boolean      @default(false)
   damageFound       Boolean      @default(false)
+  quotedPrice       Decimal?     @db.Decimal(10, 2)
+  quotedPriceNotes  String?
+  quotedPriceSource String?
   notes           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

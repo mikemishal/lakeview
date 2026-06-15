@@ -7,7 +7,6 @@ import PropertyForm from "@/components/PropertyForm";
 import CalendarSyncForm from "@/components/CalendarSyncForm";
 import AdHocJobForm, { type AdHocJobFormPayload } from "@/components/AdHocJobForm";
 import CleaningJobCard, { type CleaningJobItem as BaseCleaningJobItem } from "@/components/CleaningJobCard";
-import CleaningJobCalendar from "@/components/CleaningJobCalendar";
 import { type CleanerScheduleJob } from "@/components/CleanerSchedule";
 import ProviderJobCalendar from "@/components/ProviderJobCalendar";
 import ServiceProviderForm from "@/components/ServiceProviderForm";
@@ -124,6 +123,10 @@ type GenerateCleaningJobsResponse = {
 };
 
 type UpdateCleaningJobStatusResponse = {
+  cleaningJob: CleaningJobItem;
+};
+
+type UpdateCleaningJobPriceResponse = {
   cleaningJob: CleaningJobItem;
 };
 
@@ -611,9 +614,6 @@ export default function HomePage() {
   const [showCreateJob, setShowCreateJob] = useState(false);
   const [generatingJobsPropertyId, setGeneratingJobsPropertyId] = useState("");
   const [cleaningJobGenerationMessage, setCleaningJobGenerationMessage] = useState("");
-  const [cleaningJobsView, setCleaningJobsView] = useState<"list" | "grouped" | "calendar">(
-    "grouped"
-  );
   const [ownerActiveQueue, setOwnerActiveQueue] = useState<OwnerActiveQueue>("none");
   const [futureSummaryRange] = useState<7 | 30 | 90>(30);
   const [showJobSummary, setShowJobSummary] = useState(false);
@@ -621,6 +621,18 @@ export default function HomePage() {
   const [showJobs, setShowJobs] = useState(false);
   const [cleaningJobStatusFilter, setCleaningJobStatusFilter] = useState("all");
   const [cleaningJobProviderFilter, setCleaningJobProviderFilter] = useState("all");
+  const [cleaningJobTypeFilter, setCleaningJobTypeFilter] = useState("all");
+  const [cleaningJobPropertyFilter, setCleaningJobPropertyFilter] = useState("all");
+  const [cleaningJobDateFilter, setCleaningJobDateFilter] = useState("all");
+  const [openedJobId, setOpenedJobId] = useState<string | null>(null);
+  const [openedJobEditMode, setOpenedJobEditMode] = useState(false);
+  const [openedJobNotesDraft, setOpenedJobNotesDraft] = useState("");
+  const [openedJobPriceDraft, setOpenedJobPriceDraft] = useState("");
+  const [openedJobPriceNotesDraft, setOpenedJobPriceNotesDraft] = useState("");
+  const [openedJobAssignmentDraft, setOpenedJobAssignmentDraft] = useState<string | null>(null);
+  const [savingOpenedJob, setSavingOpenedJob] = useState(false);
+  const [openedJobEditError, setOpenedJobEditError] = useState("");
+  const [openedJobEditSuccess, setOpenedJobEditSuccess] = useState("");
   const [showManualSync, setShowManualSync] = useState(false);
 
   const [serviceProviders, setServiceProviders] = useState<ServiceProvider[]>([]);
@@ -739,12 +751,8 @@ export default function HomePage() {
       }));
   }
 
-  const cleanerProviders = getTeamProvidersForServiceType("cleaning");
-
   // Build providers list for AdHocJobForm (includes team members with pricing + regular providers)
   const adHocJobProviders = (() => {
-    const teamsById = new Set(teamMembers.filter(m => m.isActive).map(m => m.serviceProviderId));
-    
     return serviceProviders.map((provider) => {
       const teamMember = teamMembers.find(m => m.serviceProviderId === provider.id && m.isActive);
       return {
@@ -755,20 +763,23 @@ export default function HomePage() {
     });
   })();
 
-  // Determine dashboard filter and label from URL
-  const dashboardFilter = searchParams.get("dashboardFilter");
+  // Determine dashboard filter and label from URL.
+  // Keep backward compatibility with existing `dashboardFilter` and support `filter` links.
+  const dashboardFilter = searchParams.get("dashboardFilter") ?? searchParams.get("filter");
   const dashboardFilterConfig = (() => {
     switch (dashboardFilter) {
       case "today":
-        return { active: "today", label: "Today's Jobs", status: "all", provider: "all" };
+        return { active: "today", label: "Today", status: "all", provider: "all", date: "today" };
       case "needs-assignment":
-        return { active: "needs-assignment", label: "Needs Assignment", status: "needs_assignment", provider: "all" };
+        return { active: "needs-assignment", label: "Needs Assignment", status: "needs_assignment", provider: "all", date: "all" };
+      case "pending-acceptance":
+        return { active: "pending-acceptance", label: "Pending Acceptance", status: "pending_acceptance", provider: "all", date: "all" };
       case "upcoming":
-        return { active: "upcoming", label: "Upcoming Jobs", status: "all", provider: "all" };
+        return { active: "upcoming", label: "Upcoming", status: "all", provider: "all", date: "upcoming" };
       case "urgent-issues":
-        return { active: "urgent-issues", label: "Urgent Issues", status: "all", provider: "all" };
+        return { active: "urgent-issues", label: "Urgent Issues", status: "all", provider: "all", date: "all" };
       default:
-        return { active: null, label: "", status: "all", provider: "all" };
+        return { active: null, label: "", status: "all", provider: "all", date: "all" };
     }
   })();
 
@@ -777,6 +788,7 @@ export default function HomePage() {
   const effectiveDashboardFilterLabel = dashboardFilterConfig.label;
   const effectiveCleaningJobStatusFilter = dashboardFilterConfig.active ? dashboardFilterConfig.status : cleaningJobStatusFilter;
   const effectiveCleaningJobProviderFilter = dashboardFilterConfig.active ? dashboardFilterConfig.provider : cleaningJobProviderFilter;
+  const effectiveCleaningJobDateFilter = dashboardFilterConfig.active ? dashboardFilterConfig.date : cleaningJobDateFilter;
   const effectiveShowJobs = dashboardFilterConfig.active ? true : showJobs;
 
   // Date calculations for filtering
@@ -818,8 +830,68 @@ export default function HomePage() {
       result = result.filter((job) => job.assignedProviderId === effectiveCleaningJobProviderFilter);
     }
 
+    // Apply type filter
+    if (cleaningJobTypeFilter !== "all") {
+      result = result.filter(
+        (job) => normalizeProviderServiceType(job.requestedServiceType) === cleaningJobTypeFilter
+      );
+    }
+
+    // Apply property filter
+    if (cleaningJobPropertyFilter !== "all") {
+      result = result.filter((job) => job.propertyId === cleaningJobPropertyFilter);
+    }
+
+    // Apply date filter
+    if (effectiveCleaningJobDateFilter === "today") {
+      result = result.filter((job) => toDateOnly(job.scheduledDate) === todayDateOnly);
+    } else if (effectiveCleaningJobDateFilter === "upcoming") {
+      result = result.filter((job) => toDateOnly(job.scheduledDate) > todayDateOnly);
+    } else if (effectiveCleaningJobDateFilter === "past") {
+      result = result.filter((job) => toDateOnly(job.scheduledDate) < todayDateOnly);
+    }
+
     return result;
   })();
+
+  const providerFilterOptions = (() => {
+    const options = new Map<string, string>();
+
+    teamMembers
+      .filter((member) => member.isActive)
+      .forEach((member) => {
+        const label = member.serviceProvider.companyName
+          ? `${member.serviceProvider.name} (${member.serviceProvider.companyName})`
+          : member.serviceProvider.name;
+        options.set(member.serviceProviderId, label);
+      });
+
+    cleaningJobs.forEach((job) => {
+      if (job.assignedProviderId && job.assignedProvider) {
+        const label = job.assignedProvider.companyName
+          ? `${job.assignedProvider.name} (${job.assignedProvider.companyName})`
+          : job.assignedProvider.name;
+        options.set(job.assignedProviderId, label);
+      }
+    });
+
+    return Array.from(options.entries()).map(([id, label]) => ({ id, label }));
+  })();
+
+  const openedJob = openedJobId ? cleaningJobs.find((job) => job.id === openedJobId) ?? null : null;
+  const openedJobTeamProviders = openedJob
+    ? getTeamProvidersForServiceType(openedJob.requestedServiceType)
+    : [];
+  const openedJobAssignedTeamProvider = openedJob?.assignedProviderId
+    ? openedJobTeamProviders.find((provider) => provider.id === openedJob.assignedProviderId) ?? null
+    : null;
+  const openedJobQuotedPrice =
+    openedJob?.quotedPrice && Number.isFinite(Number(openedJob.quotedPrice))
+      ? Number(openedJob.quotedPrice)
+      : null;
+  const openedJobHasCustomPrice =
+    openedJob?.quotedPriceSource === "custom_job_price" ||
+    openedJob?.quotedPriceSource === "manual_override";
 
   const futureNeedsAssignmentJobs = futureJobsAll.filter(
     (job) => job.status === "needs_assignment"
@@ -1960,7 +2032,7 @@ export default function HomePage() {
     }
   }
 
-  async function handleAssignCleaningJobProvider(jobId: string, providerId: string | null) {
+  async function handleAssignCleaningJobProvider(jobId: string, providerId: string | null): Promise<boolean> {
     setUpdatingProviderJobId(jobId);
     setProviderAssignmentError("");
 
@@ -1981,7 +2053,7 @@ export default function HomePage() {
         setProviderAssignmentError(
           (data as CalendarSyncError).error || "Failed to assign cleaning job provider."
         );
-        return;
+        return false;
       }
 
       const updatedJob = (data as UpdateCleaningJobStatusResponse).cleaningJob;
@@ -2008,8 +2080,10 @@ export default function HomePage() {
             }
           : currentJob
       );
+      return true;
     } catch {
       setProviderAssignmentError("Failed to assign cleaning job provider.");
+      return false;
     } finally {
       setUpdatingProviderJobId("");
     }
@@ -2066,7 +2140,7 @@ export default function HomePage() {
     }
   }
 
-  async function handleUpdateCleaningJobNotes(jobId: string, notes: string | null) {
+  async function handleUpdateCleaningJobNotes(jobId: string, notes: string | null): Promise<boolean> {
     setUpdatingNotesJobId(jobId);
     setCleaningJobNotesError("");
 
@@ -2087,7 +2161,7 @@ export default function HomePage() {
         setCleaningJobNotesError(
           (data as CalendarSyncError).error || "Failed to update cleaning job notes."
         );
-        return;
+        return false;
       }
 
       const updatedJob = (data as UpdateCleaningJobNotesResponse).cleaningJob;
@@ -2115,11 +2189,164 @@ export default function HomePage() {
             }
           : currentJob
       );
+      return true;
     } catch {
       setCleaningJobNotesError("Failed to update cleaning job notes.");
+      return false;
     } finally {
       setUpdatingNotesJobId("");
     }
+  }
+
+  async function handleUpdateCleaningJobPrice(
+    jobId: string,
+    quotedPrice: string | null,
+    quotedPriceNotes: string | null
+  ): Promise<boolean> {
+    const response = await fetch(`/api/cleaning-jobs/${jobId}/price`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ quotedPrice, quotedPriceNotes }),
+    });
+
+    const data = (await response.json()) as
+      | UpdateCleaningJobPriceResponse
+      | CalendarSyncError;
+
+    if (!response.ok) {
+      setOpenedJobEditError(
+        (data as CalendarSyncError).error || "Failed to update job price."
+      );
+      return false;
+    }
+
+    const updatedJob = (data as UpdateCleaningJobPriceResponse).cleaningJob;
+
+    setCleaningJobs((previous) =>
+      previous.map((job) =>
+        job.id === jobId
+          ? {
+              ...job,
+              ...updatedJob,
+              calendarEvent: updatedJob.calendarEvent ?? job.calendarEvent,
+              assignedProvider: updatedJob.assignedProvider ?? job.assignedProvider,
+            }
+          : job
+      )
+    );
+
+    setFocusedOwnerNotificationJob((currentJob) =>
+      currentJob?.id === jobId
+        ? {
+            ...currentJob,
+            ...updatedJob,
+            calendarEvent: updatedJob.calendarEvent ?? currentJob.calendarEvent,
+            assignedProvider: updatedJob.assignedProvider ?? currentJob.assignedProvider,
+          }
+        : currentJob
+    );
+
+    return true;
+  }
+
+  async function handleSaveOpenedJobChanges() {
+    if (!openedJob) {
+      return;
+    }
+
+    setSavingOpenedJob(true);
+    setOpenedJobEditError("");
+    setOpenedJobEditSuccess("");
+
+    try {
+      if (openedJobAssignmentDraft !== openedJob.assignedProviderId) {
+        const success = await handleAssignCleaningJobProvider(
+          openedJob.id,
+          openedJobAssignmentDraft
+        );
+        if (!success) {
+          setSavingOpenedJob(false);
+          return;
+        }
+      }
+
+      const normalizedNotes = openedJobNotesDraft.trim() || null;
+      if ((openedJob.notes ?? null) !== normalizedNotes) {
+        const success = await handleUpdateCleaningJobNotes(openedJob.id, normalizedNotes);
+        if (!success) {
+          setSavingOpenedJob(false);
+          return;
+        }
+      }
+
+      const trimmedPrice = openedJobPriceDraft.trim();
+      const normalizedPrice = trimmedPrice.length === 0 ? null : trimmedPrice;
+      const normalizedPriceNotes = openedJobPriceNotesDraft.trim() || null;
+
+      const currentPrice = openedJob.quotedPrice ? Number(openedJob.quotedPrice).toFixed(2) : "";
+      const draftPrice = normalizedPrice ? Number(normalizedPrice).toFixed(2) : "";
+      const shouldUpdatePrice =
+        currentPrice !== draftPrice ||
+        (openedJob.quotedPriceNotes ?? null) !== normalizedPriceNotes;
+
+      if (shouldUpdatePrice) {
+        const success = await handleUpdateCleaningJobPrice(
+          openedJob.id,
+          normalizedPrice,
+          normalizedPriceNotes
+        );
+        if (!success) {
+          setSavingOpenedJob(false);
+          return;
+        }
+      }
+
+      setOpenedJobEditMode(false);
+      setOpenedJobEditSuccess("Job updated successfully.");
+    } catch {
+      setOpenedJobEditError("Failed to save job updates.");
+    } finally {
+      setSavingOpenedJob(false);
+    }
+  }
+
+  function handleCancelOpenedJobEdit() {
+    if (!openedJob) {
+      return;
+    }
+
+    setOpenedJobNotesDraft(openedJob.notes ?? "");
+    setOpenedJobPriceDraft(openedJob.quotedPrice ? Number(openedJob.quotedPrice).toFixed(2) : "");
+    setOpenedJobPriceNotesDraft(openedJob.quotedPriceNotes ?? "");
+    setOpenedJobAssignmentDraft(openedJob.assignedProviderId);
+    setOpenedJobEditMode(false);
+    setOpenedJobEditError("");
+  }
+
+  function handleOpenJobDetails(selectedJob: CleaningJobItem) {
+    setOpenedJobId(selectedJob.id);
+    setOpenedJobEditMode(false);
+    setOpenedJobNotesDraft(selectedJob.notes ?? "");
+    setOpenedJobPriceDraft(
+      selectedJob.quotedPrice ? Number(selectedJob.quotedPrice).toFixed(2) : ""
+    );
+    setOpenedJobPriceNotesDraft(selectedJob.quotedPriceNotes ?? "");
+    setOpenedJobAssignmentDraft(selectedJob.assignedProviderId);
+    setOpenedJobEditError("");
+    setOpenedJobEditSuccess("");
+  }
+
+  function handleCloseJobDetails() {
+    setOpenedJobId(null);
+    setOpenedJobEditMode(false);
+    setOpenedJobNotesDraft("");
+    setOpenedJobPriceDraft("");
+    setOpenedJobPriceNotesDraft("");
+    setOpenedJobAssignmentDraft(null);
+    setOpenedJobEditError("");
+    setOpenedJobEditSuccess("");
   }
 
   async function handleUpdateCleaningJobIssueFlags(
@@ -2389,8 +2616,6 @@ export default function HomePage() {
     calendarEvent: job.calendarEvent,
     assignedProvider: job.assignedProvider,
   }));
-  const ownerJobsTabView = cleaningJobsView === "calendar" ? "grouped" : cleaningJobsView;
-
   return (
     <>
     <AppHeader
@@ -3416,15 +3641,15 @@ export default function HomePage() {
               <div className="space-y-1">
                 <h2 className="font-serif text-3xl font-bold text-[#0D1B2A]">Jobs</h2>
                 <p className="text-base text-[#7A7060]">
-                  Track turnovers, cleanings, maintenance, and restock work.
+                  Manage assignments, pricing, and service work.
                 </p>
               </div>
 
-              <div className="rounded-[14px] border border-[#E5E0D8] bg-[#0D1B2A] p-5 text-white shadow-[0_12px_24px_rgba(13,27,42,0.16)]">
+              <div className="rounded-[14px] border border-[#E5E0D8] bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-2">
-                    <h3 className="font-serif text-2xl font-semibold">Create ad hoc job</h3>
-                    <p className="max-w-2xl text-sm text-[#F3EDE2]">
+                    <h3 className="font-serif text-xl font-semibold text-[#0D1B2A]">Create ad hoc job</h3>
+                    <p className="max-w-2xl text-sm text-[#7A7060]">
                       Cleaning, maintenance, restock, or one-time work.
                     </p>
                   </div>
@@ -3483,84 +3708,43 @@ export default function HomePage() {
               ) : null}
 
               <section className="mt-6 rounded-[14px] border border-[#E5E0D8] bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                  <div className="space-y-1">
-                    {effectiveDashboardFilterActive ? (
-                      <>
-                        <h3 className="font-serif text-xl font-semibold text-[#0D1B2A]">{effectiveDashboardFilterLabel}</h3>
-                        <p className="text-sm text-[#7A7060]">Filtered from dashboard. Adjust filters or clear to see all jobs.</p>
-                      </>
-                    ) : (
-                      <>
-                        <h3 className="font-serif text-xl font-semibold text-[#0D1B2A]">Filter jobs</h3>
-                        <p className="text-sm text-[#7A7060]">Set filters first, then view matching jobs.</p>
-                      </>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    {effectiveDashboardFilterActive ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          router.push("?tab=jobs");
-                          setCleaningJobStatusFilter("all");
-                          setCleaningJobProviderFilter("all");
-                          setShowJobs(false);
-                        }}
-                        className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-5 py-2.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-white"
-                      >
-                        Clear filter
-                      </button>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      onClick={() => setShowJobs((previous) => !previous)}
-                      className={`inline-flex min-h-11 items-center justify-center rounded-full px-5 py-2.5 text-sm font-medium transition ${
-                        effectiveShowJobs
-                          ? "bg-[#E8F4F1] text-[#0F6A5F] hover:bg-[#D4E8E4]"
-                          : "bg-[#0D1B2A] text-white shadow-[0_6px_16px_rgba(13,27,42,0.16)] hover:bg-[#0A1420]"
-                      }`}
-                    >
-                      {effectiveShowJobs ? "Hide Jobs" : "View Jobs"}
-                    </button>
-                  </div>
+                <div className="space-y-1">
+                  <h3 className="font-serif text-xl font-semibold text-[#0D1B2A]">Find Jobs</h3>
+                  <p className="text-sm text-[#7A7060]">Filter first, then view matching jobs.</p>
                 </div>
 
-                <div className="mt-5 inline-flex rounded-full bg-[#FAF7F2] p-1">
+                {effectiveDashboardFilterActive ? (
+                  <div className="mt-4 flex flex-wrap items-center gap-2 rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] px-3 py-2">
+                    <span className="inline-flex rounded-full bg-[#E8F4F1] px-3 py-1 text-xs font-medium text-[#1A6B60]">
+                      Dashboard filter: {effectiveDashboardFilterLabel}
+                    </span>
                     <button
                       type="button"
-                      onClick={() => setCleaningJobsView("list")}
-                      className={`min-h-11 rounded-full px-4 py-2.5 text-sm font-medium transition ${
-                        cleaningJobsView === "list"
-                          ? "bg-[#0D1B2A] text-white shadow-[0_6px_16px_rgba(13,27,42,0.16)]"
-                          : "text-[#7A7060] hover:text-[#0D1B2A]"
-                      }`}
+                      onClick={() => {
+                        const params = new URLSearchParams(searchParams.toString());
+                        params.delete("dashboardFilter");
+                        params.delete("filter");
+                        params.delete("view");
+                        params.set("tab", "jobs");
+                        const queryString = params.toString();
+                        router.push(queryString ? `/owner?${queryString}` : "/owner?tab=jobs", {
+                          scroll: false,
+                        });
+                        setShowJobs(false);
+                        setCleaningJobStatusFilter("all");
+                        setCleaningJobProviderFilter("all");
+                        setCleaningJobTypeFilter("all");
+                        setCleaningJobPropertyFilter("all");
+                        setCleaningJobDateFilter("all");
+                      }}
+                      className="inline-flex min-h-9 items-center justify-center rounded-full border border-[#E5E0D8] bg-white px-3 py-1.5 text-xs font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2]"
                     >
-                      List
+                      Clear filter
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setCleaningJobsView("grouped")}
-                      className={`min-h-11 rounded-full px-4 py-2.5 text-sm font-medium transition ${
-                        cleaningJobsView === "grouped"
-                          ? "bg-[#0D1B2A] text-white shadow-[0_6px_16px_rgba(13,27,42,0.16)]"
-                          : "text-[#7A7060] hover:text-[#0D1B2A]"
-                      }`}
-                    >
-                      Grouped
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateOwnerTab("calendar")}
-                      className="min-h-11 rounded-full px-4 py-2.5 text-sm font-medium text-[#7A7060] transition hover:text-[#0D1B2A]"
-                    >
-                      Calendar
-                    </button>
-                </div>
+                  </div>
+                ) : null}
 
-                <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   <div className="space-y-2">
                     <label htmlFor="cleaningJobStatusFilter" className="block text-sm font-medium text-[#0D1B2A]">
                       Status
@@ -3569,44 +3753,116 @@ export default function HomePage() {
                       id="cleaningJobStatusFilter"
                       value={cleaningJobStatusFilter}
                       onChange={(event) => setCleaningJobStatusFilter(event.target.value)}
-                      className="min-h-11 w-full rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-2.5 text-sm text-[#0D1B2A] outline-none transition focus:border-[#B8860B]"
+                      className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
                     >
                       <option value="all">All</option>
-                      <option value="needs_assignment">Needs provider</option>
+                      <option value="needs_assignment">Needs Assignment</option>
                       <option value="assigned">Assigned</option>
-                      <option value="declined">Declined</option>
-                      <option value="accepted">Accepted</option>
-                      <option value="in_progress">In progress</option>
+                      <option value="pending_acceptance">Pending Acceptance</option>
+                      <option value="in_progress">Active</option>
                       <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
+                      <option value="cancelled">Canceled</option>
                     </select>
                   </div>
 
                   <div className="space-y-2">
                     <label htmlFor="cleaningJobProviderFilter" className="block text-sm font-medium text-[#0D1B2A]">
-                      Cleaner
+                      Provider
                     </label>
                     <select
                       id="cleaningJobProviderFilter"
                       value={cleaningJobProviderFilter}
                       onChange={(event) => setCleaningJobProviderFilter(event.target.value)}
-                      className="min-h-11 w-full rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-2.5 text-sm text-[#0D1B2A] outline-none transition focus:border-[#B8860B]"
+                      className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
                     >
-                      <option value="all">All cleaners</option>
-                      <option value="unassigned">Needs provider</option>
-                      {cleanerProviders.map((provider) => (
+                      <option value="all">All</option>
+                      <option value="unassigned">Unassigned</option>
+                      {providerFilterOptions.map((provider) => (
                         <option key={provider.id} value={provider.id}>
-                          {provider.companyName ? `${provider.name} (${provider.companyName})` : provider.name}
+                          {provider.label}
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  <div className="flex items-end">
-                    <p className="rounded-2xl border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-3 text-sm text-[#7A7060]">
-                      {filteredCleaningJobs.length} job{filteredCleaningJobs.length === 1 ? "" : "s"} available
-                    </p>
+                  <div className="space-y-2">
+                    <label htmlFor="cleaningJobTypeFilter" className="block text-sm font-medium text-[#0D1B2A]">
+                      Type
+                    </label>
+                    <select
+                      id="cleaningJobTypeFilter"
+                      value={cleaningJobTypeFilter}
+                      onChange={(event) => setCleaningJobTypeFilter(event.target.value)}
+                      className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
+                    >
+                      <option value="all">All</option>
+                      <option value="cleaning">Cleaning</option>
+                      <option value="maintenance">Maintenance</option>
+                      <option value="restock">Restock</option>
+                      <option value="inspection">Inspection</option>
+                      <option value="laundry">Laundry</option>
+                      <option value="trash_removal">Trash</option>
+                    </select>
                   </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="cleaningJobPropertyFilter" className="block text-sm font-medium text-[#0D1B2A]">
+                      Property
+                    </label>
+                    <select
+                      id="cleaningJobPropertyFilter"
+                      value={cleaningJobPropertyFilter}
+                      onChange={(event) => setCleaningJobPropertyFilter(event.target.value)}
+                      className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
+                    >
+                      <option value="all">All</option>
+                      {properties.map((property) => (
+                        <option key={property.id} value={property.id}>
+                          {property.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="cleaningJobDateFilter" className="block text-sm font-medium text-[#0D1B2A]">
+                      Date
+                    </label>
+                    <select
+                      id="cleaningJobDateFilter"
+                      value={cleaningJobDateFilter}
+                      onChange={(event) => setCleaningJobDateFilter(event.target.value)}
+                      className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
+                    >
+                      <option value="all">All</option>
+                      <option value="today">Today</option>
+                      <option value="upcoming">Upcoming</option>
+                      <option value="past">Past</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowJobs(true)}
+                    className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#0D1B2A] px-5 py-2.5 text-sm font-medium text-white shadow-[0_6px_16px_rgba(13,27,42,0.16)] transition hover:bg-[#14243A]"
+                  >
+                    View Jobs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCleaningJobStatusFilter("all");
+                      setCleaningJobProviderFilter("all");
+                      setCleaningJobTypeFilter("all");
+                      setCleaningJobPropertyFilter("all");
+                      setCleaningJobDateFilter("all");
+                    }}
+                    className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-5 py-2.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-white"
+                  >
+                    Reset Filters
+                  </button>
                 </div>
               </section>
 
@@ -3661,35 +3917,41 @@ export default function HomePage() {
               ) : null}
 
               {effectiveShowJobs ? (
-                <>
+                <section className="mt-6 space-y-4">
+                  <div className="space-y-1">
+                    <h3 className="font-serif text-lg font-semibold text-[#0D1B2A]">Matching Jobs</h3>
+                    <p className="text-sm text-[#7A7060]">Showing jobs that match your filters.</p>
+                    <p className="text-sm font-medium text-[#1A1208]">
+                      {filteredCleaningJobs.length} job{filteredCleaningJobs.length === 1 ? "" : "s"} found
+                    </p>
+                  </div>
+
                   {!loadingCleaningJobsPropertyId && !cleaningJobsError && cleaningJobs.length === 0 ? (
-                <EmptyState
-                  title="No jobs assigned yet"
-                  message="Create your first job to begin dispatching work."
-                  actionLabel="Create your first job"
-                  onAction={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                />
+                    <EmptyState
+                      title="No jobs assigned yet"
+                      message="Create your first job to begin dispatching work."
+                      actionLabel="Create your first job"
+                      onAction={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                    />
                   ) : null}
 
                   {!loadingCleaningJobsPropertyId && !cleaningJobsError && cleaningJobs.length > 0 && filteredCleaningJobs.length === 0 ? (
-                <div className="rounded-[12px] border-2 border-dashed border-[#E5E0D8] bg-[#FAF7F2] p-6 text-center">
-                  <h4 className="font-serif text-lg font-semibold text-[#0D1B2A]">No matching jobs</h4>
-                  <p className="mt-1 text-sm text-[#7A7060]">Adjust the filters or create a new ad hoc job.</p>
-                </div>
+                    <div className="rounded-[12px] border-2 border-dashed border-[#E5E0D8] bg-[#FAF7F2] p-6 text-center">
+                      <h4 className="font-serif text-lg font-semibold text-[#0D1B2A]">No matching jobs</h4>
+                      <p className="mt-1 text-sm text-[#7A7060]">Adjust the filters or create a new ad hoc job.</p>
+                    </div>
                   ) : null}
 
                   {!loadingCleaningJobsPropertyId && !cleaningJobsError && filteredCleaningJobs.length > 0 ? (
-                    <>
-                      <h3 className="mt-6 font-serif text-lg font-semibold text-[#0D1B2A]">Matching Jobs</h3>
-                      {ownerJobsTabView === "list" ? (
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-3">
                       {filteredCleaningJobs.map((job) => (
                         <CleaningJobCard
                           key={job.id}
                           job={job}
+                          onOpen={handleOpenJobDetails}
                           onStatusChange={handleUpdateCleaningJobStatus}
                           statusUpdating={updatingCleaningJobId === job.id}
-                          cleanerProviders={cleanerProviders}
+                          cleanerProviders={getTeamProvidersForServiceType(job.requestedServiceType)}
                           onProviderChange={handleAssignCleaningJobProvider}
                           providerUpdating={updatingProviderJobId === job.id}
                           showOwnerActions={true}
@@ -3702,12 +3964,222 @@ export default function HomePage() {
                         />
                       ))}
                     </div>
-                      ) : (
-                    <CleaningJobCalendar jobs={filteredCleaningJobs} />
-                      )}
-                    </>
                   ) : null}
-                </>
+
+                  {openedJob ? (
+                    <section className="rounded-[12px] border border-[#E5E0D8] bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)] sm:p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <h4 className="font-serif text-lg font-semibold text-[#0D1B2A]">Job Details</h4>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {!openedJobEditMode ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenedJobEditMode(true);
+                                setOpenedJobEditError("");
+                                setOpenedJobEditSuccess("");
+                              }}
+                              className="inline-flex min-h-10 items-center justify-center rounded-full bg-[#0D1B2A] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#14243A]"
+                            >
+                              Edit Job
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={handleCloseJobDetails}
+                            className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-4 py-2 text-sm font-medium text-[#0D1B2A] transition hover:bg-white"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+
+                      {openedJobEditError ? (
+                        <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                          {openedJobEditError}
+                        </p>
+                      ) : null}
+
+                      {openedJobEditSuccess ? (
+                        <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                          {openedJobEditSuccess}
+                        </p>
+                      ) : null}
+
+                      <div className="mt-4 grid gap-3 text-sm text-[#7A7060] sm:grid-cols-2">
+                        <p><span className="font-medium text-[#1A1208]">Property:</span> {openedJob.property?.name ?? "Unknown"}</p>
+                        <p><span className="font-medium text-[#1A1208]">Service:</span> {formatServiceTypeLabel(openedJob.requestedServiceType)}</p>
+                        <p><span className="font-medium text-[#1A1208]">Scheduled:</span> {formatLongDateLabel(openedJob.scheduledDate)}</p>
+                        {openedJob.dueTime ? <p><span className="font-medium text-[#1A1208]">Time:</span> {openedJob.dueTime}</p> : null}
+                        <p><span className="font-medium text-[#1A1208]">Status:</span> {openedJob.status.replace(/_/g, " ")}</p>
+                        <p><span className="font-medium text-[#1A1208]">Assigned provider:</span> {openedJob.assignedProvider?.name ?? "Unassigned"}</p>
+                        <p><span className="font-medium text-[#1A1208]">Priority:</span> {openedJob.priority}</p>
+                        {openedJob.estimatedDurationMinutes !== null ? (
+                          <p><span className="font-medium text-[#1A1208]">Duration:</span> {openedJob.estimatedDurationMinutes} min</p>
+                        ) : null}
+                        {openedJob.createdAt ? (
+                          <p><span className="font-medium text-[#1A1208]">Created:</span> {formatLongDateLabel(openedJob.createdAt)}</p>
+                        ) : null}
+                        {(openedJob.maintenanceNeeded || openedJob.restockNeeded || openedJob.damageFound) ? (
+                          <p><span className="font-medium text-[#1A1208]">Issues:</span> Reported</p>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-4 space-y-3 rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] p-4">
+                        <h5 className="text-sm font-semibold text-[#0D1B2A]">Assignment</h5>
+                        {!openedJobEditMode ? (
+                          <>
+                            <p className="text-sm text-[#7A7060]">
+                              {openedJob.assignedProvider
+                                ? `${openedJob.assignedProvider.name}${openedJob.assignedProvider.companyName ? ` (${openedJob.assignedProvider.companyName})` : ""}`
+                                : "Unassigned"}
+                            </p>
+                            <p className="text-xs text-[#7A7060]">
+                              {openedJob.assignedProviderId ? "Change Assignment is available in Edit Job mode." : "Assign Provider is available in Edit Job mode."}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <label className="space-y-1 text-sm text-[#7A7060]">
+                              <span className="block font-medium text-[#1A1208]">
+                                {openedJob.assignedProviderId ? "Change Assignment" : "Assign Provider"}
+                              </span>
+                              <select
+                                value={openedJobAssignmentDraft ?? ""}
+                                onChange={(event) => setOpenedJobAssignmentDraft(event.target.value || null)}
+                                className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
+                              >
+                                <option value="">Unassigned</option>
+                                {(() => {
+                                  const options = [...openedJobTeamProviders];
+                                  if (
+                                    openedJob.assignedProviderId &&
+                                    openedJob.assignedProvider &&
+                                    !options.some((provider) => provider.id === openedJob.assignedProviderId)
+                                  ) {
+                                    options.unshift({
+                                      id: openedJob.assignedProviderId,
+                                      name: `${openedJob.assignedProvider.name} (legacy assignment)`,
+                                      companyName: openedJob.assignedProvider.companyName,
+                                      cleaningFlatRateCents: null,
+                                      cleaningHourlyRateCents: null,
+                                    });
+                                  }
+
+                                  return options.map((provider) => {
+                                    const label = provider.companyName
+                                      ? `${provider.name} (${provider.companyName})`
+                                      : provider.name;
+                                    const priceLabel =
+                                      openedJob.requestedServiceType === "cleaning"
+                                        ? provider.cleaningFlatRateCents !== null && provider.cleaningFlatRateCents !== undefined
+                                          ? ` — $${(provider.cleaningFlatRateCents / 100).toFixed(2)}`
+                                          : " — Price not set"
+                                        : "";
+                                    return (
+                                      <option key={provider.id} value={provider.id}>
+                                        {label}
+                                        {priceLabel}
+                                      </option>
+                                    );
+                                  });
+                                })()}
+                              </select>
+                            </label>
+
+                            {openedJobTeamProviders.length === 0 ? (
+                              <div className="space-y-2 rounded-[10px] border border-dashed border-[#E5E0D8] bg-white p-3">
+                                <p className="text-sm text-[#D97706]">No team providers available</p>
+                                <p className="text-xs text-[#7A7060]">Add a provider to My Team or choose a different service type.</p>
+                                <button
+                                  type="button"
+                                  onClick={() => updateOwnerTab("providers")}
+                                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-3 py-1.5 text-xs font-medium text-[#0D1B2A] transition hover:bg-white"
+                                >
+                                  Go to My Team
+                                </button>
+                              </div>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
+
+                      <div className="mt-4 space-y-3 rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] p-4">
+                        <h5 className="text-sm font-semibold text-[#0D1B2A]">Price</h5>
+                        <p className="text-sm text-[#7A7060]"><span className="font-medium text-[#1A1208]">Job price:</span> {openedJobQuotedPrice !== null ? `$${openedJobQuotedPrice.toFixed(2)}` : <span className="text-[#D97706]">Price not set</span>}</p>
+                        {openedJob.requestedServiceType === "cleaning" ? (
+                          <p className="text-sm text-[#7A7060]"><span className="font-medium text-[#1A1208]">Team default:</span> {openedJobAssignedTeamProvider?.cleaningFlatRateCents !== null && openedJobAssignedTeamProvider?.cleaningFlatRateCents !== undefined ? `$${(openedJobAssignedTeamProvider.cleaningFlatRateCents / 100).toFixed(2)}` : "Not set"}</p>
+                        ) : (
+                          <p className="text-sm text-[#7A7060]">Price setup later for this service type.</p>
+                        )}
+
+                        {openedJobEditMode ? (
+                          <>
+                            <label className="space-y-1 text-sm text-[#7A7060]">
+                              <span className="block font-medium text-[#1A1208]">Custom price for this job</span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={openedJobPriceDraft}
+                                onChange={(event) => setOpenedJobPriceDraft(event.target.value)}
+                                placeholder="e.g. 150.00"
+                                className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
+                              />
+                            </label>
+                            <label className="space-y-1 text-sm text-[#7A7060]">
+                              <span className="block font-medium text-[#1A1208]">Price notes (optional)</span>
+                              <input
+                                type="text"
+                                value={openedJobPriceNotesDraft}
+                                onChange={(event) => setOpenedJobPriceNotesDraft(event.target.value)}
+                                className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
+                              />
+                            </label>
+                            <p className="text-xs text-[#7A7060]">This changes only this job, not the provider&apos;s default team price.</p>
+                            {openedJobHasCustomPrice && openedJobAssignmentDraft !== openedJob.assignedProviderId ? (
+                              <p className="text-xs text-[#1A6B60]">Custom job price preserved</p>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-4 space-y-2 rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] p-4">
+                        <h5 className="text-sm font-semibold text-[#0D1B2A]">Notes / Instructions</h5>
+                        {!openedJobEditMode ? (
+                          <p className="text-sm text-[#7A7060]">{openedJob.notes || openedJob.ownerInstructions || "No notes provided."}</p>
+                        ) : (
+                          <textarea
+                            value={openedJobNotesDraft}
+                            onChange={(event) => setOpenedJobNotesDraft(event.target.value)}
+                            rows={3}
+                            className="w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#1A1208] outline-none transition focus:border-[#B8860B]"
+                          />
+                        )}
+                      </div>
+
+                      {openedJobEditMode ? (
+                        <div className="mt-4 flex flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={handleCancelOpenedJobEdit}
+                            disabled={savingOpenedJob}
+                            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-5 py-2.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveOpenedJobChanges()}
+                            disabled={savingOpenedJob}
+                            className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#0D1B2A] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#14243A] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {savingOpenedJob ? "Saving..." : "Save Changes"}
+                          </button>
+                        </div>
+                      ) : null}
+                    </section>
+                  ) : null}
+                </section>
               ) : null}
 
               <section className="mt-6 space-y-3">
