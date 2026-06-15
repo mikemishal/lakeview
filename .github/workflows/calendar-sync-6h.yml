@@ -1,0 +1,30 @@
+name: Calendar Sync Every 6 Hours
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync-calendars:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger protected calendar sync endpoint
+        env:
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          CALENDAR_SYNC_SECRET: ${{ secrets.CALENDAR_SYNC_SECRET }}
+        run: |
+          if [ -z "$APP_BASE_URL" ]; then
+            echo "APP_BASE_URL is not set"
+            exit 1
+          fi
+
+          if [ -z "$CALENDAR_SYNC_SECRET" ]; then
+            echo "CALENDAR_SYNC_SECRET is not set"
+            exit 1
+          fi
+
+          curl --fail --show-error --silent \
+            -X POST "$APP_BASE_URL/api/properties/sync-scheduled" \
+            -H "x-calendar-sync-secret: $CALENDAR_SYNC_SECRET" \
+            -H "content-type: application/json"

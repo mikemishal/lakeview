@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PropertyForm from "@/components/PropertyForm";
 import CalendarSyncForm from "@/components/CalendarSyncForm";
-import CalendarEventCard from "@/components/CalendarEventCard";
 import AdHocJobForm, { type AdHocJobFormPayload } from "@/components/AdHocJobForm";
 import CleaningJobCard, { type CleaningJobItem as BaseCleaningJobItem } from "@/components/CleaningJobCard";
 import CleaningJobCalendar from "@/components/CleaningJobCalendar";
@@ -37,6 +36,7 @@ type SavedProperty = {
   name: string;
   address: string | null;
   airbnbCalendarUrl: string;
+  calendarLastSyncedAt: string | null;
   listingUrl: string | null;
   propertyType: string | null;
   bedrooms: number | null;
@@ -105,6 +105,7 @@ type SyncedDbEvent = {
 };
 
 type PropertySyncResponse = {
+  property: SavedProperty;
   events: SyncedDbEvent[];
 };
 
@@ -425,6 +426,26 @@ function formatTimeLabel(value: string | null | undefined): string {
   });
 }
 
+function formatDateTimeLabel(value: string | Date): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  const dateLabel = parsed.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const timeLabel = parsed.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return `${dateLabel} at ${timeLabel}`;
+}
+
 function addDaysToDateOnly(dateOnly: string, days: number): string {
   const base = new Date(`${dateOnly}T00:00:00.000Z`);
   if (Number.isNaN(base.getTime())) {
@@ -475,11 +496,11 @@ export default function HomePage() {
   const [petInfo, setPetInfo] = useState("");
   const [providerInstructions, setProviderInstructions] = useState("");
   const [savingProperty, setSavingProperty] = useState(false);
-  const [savedProperty, setSavedProperty] = useState<SavedProperty | null>(null);
   const [properties, setProperties] = useState<SavedProperty[]>([]);
   const [loadingProperties, setLoadingProperties] = useState(true);
   const [propertyError, setPropertyError] = useState("");
   const [propertySuccess, setPropertySuccess] = useState("");
+  const [showAddPropertyForm, setShowAddPropertyForm] = useState(false);
   const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
   const [editingPropertyForm, setEditingPropertyForm] = useState<PropertyFormState>({
     propertyName: "",
@@ -515,6 +536,7 @@ export default function HomePage() {
   const [selectedPropertyId, setSelectedPropertyId] = useState("");
   const [syncingPropertyId, setSyncingPropertyId] = useState("");
   const [loadingEventsPropertyId, setLoadingEventsPropertyId] = useState("");
+  const [expandedPropertyEventsId, setExpandedPropertyEventsId] = useState<string | null>(null);
   const [cleaningJobs, setCleaningJobs] = useState<CleaningJobItem[]>([]);
   const [loadingCleaningJobsPropertyId, setLoadingCleaningJobsPropertyId] = useState("");
   const [cleaningJobsError, setCleaningJobsError] = useState("");
@@ -968,31 +990,9 @@ export default function HomePage() {
 
       const firstProperty = loadedProperties[0];
       setSelectedPropertyId(firstProperty.id);
-      setLoadingEventsPropertyId(firstProperty.id);
       setItems([]);
       setError("");
-
-      try {
-        const eventsResponse = await fetch(`/api/properties/${firstProperty.id}/events`);
-        const eventsData = (await eventsResponse.json()) as
-          | PropertyEventsResponse
-          | CalendarSyncError;
-
-        if (!eventsResponse.ok) {
-          setError(
-            (eventsData as CalendarSyncError).error || "Unable to load saved events."
-          );
-        } else {
-          setItems(
-            mapDbEventsToCalendarItems((eventsData as PropertyEventsResponse).events)
-          );
-          void loadCleaningJobsForProperty(firstProperty.id);
-        }
-      } catch {
-        setError("Unable to load saved events.");
-      } finally {
-        setLoadingEventsPropertyId("");
-      }
+      void loadCleaningJobsForProperty(firstProperty.id, { silent: true });
     } catch {
       setPropertyError("Failed to load properties.");
     } finally {
@@ -1338,9 +1338,9 @@ export default function HomePage() {
       }
 
       const createdProperty = (data as SavePropertyResponse).property;
-      setSavedProperty(createdProperty);
       setProperties((previous) => [createdProperty, ...previous]);
       setPropertySuccess("Property saved.");
+      setShowAddPropertyForm(false);
 
       setPropertyName("");
       setPropertyAddress("");
@@ -1451,10 +1451,6 @@ export default function HomePage() {
         previous.map((property) => (property.id === updatedProperty.id ? updatedProperty : property))
       );
 
-      setSavedProperty((previous) =>
-        previous && previous.id === updatedProperty.id ? updatedProperty : previous
-      );
-
       setUpdatePropertySuccess("Property updated.");
       setEditingPropertyId(null);
     } catch {
@@ -1491,6 +1487,7 @@ export default function HomePage() {
 
   async function handleSyncSavedProperty(property: SavedProperty) {
     setSelectedPropertyId(property.id);
+    setExpandedPropertyEventsId(property.id);
     setSyncingPropertyId(property.id);
     setError("");
     setItems([]);
@@ -1506,6 +1503,14 @@ export default function HomePage() {
         return;
       }
 
+      const syncedProperty = (data as PropertySyncResponse).property;
+
+      setProperties((previous) =>
+        previous.map((currentProperty) =>
+          currentProperty.id === syncedProperty.id ? syncedProperty : currentProperty
+        )
+      );
+
       const syncedItems = mapDbEventsToCalendarItems(
         (data as PropertySyncResponse).events
       );
@@ -1520,6 +1525,14 @@ export default function HomePage() {
   }
 
   async function handleViewSavedEvents(property: SavedProperty) {
+    if (expandedPropertyEventsId === property.id) {
+      setExpandedPropertyEventsId(null);
+      setItems([]);
+      setError("");
+      return;
+    }
+
+    setExpandedPropertyEventsId(property.id);
     setSelectedPropertyId(property.id);
     setLoadingEventsPropertyId(property.id);
     setItems([]);
@@ -2346,8 +2359,42 @@ export default function HomePage() {
 
       <section className="space-y-4">
         {ownerActiveTab === "properties" ? (
-          <>
-            <PropertyForm
+            <>
+              <section className="space-y-1" style={{ fontFamily: "Georgia, Palatino, serif" }}>
+                <h2 className="font-serif text-3xl font-bold text-[#0D1B2A]">Properties</h2>
+                <p className="text-base text-[#7A7060]">Manage homes, calendar sync, and upcoming stays.</p>
+              </section>
+
+              <section className="rounded-[14px] border border-[#E5E0D8] bg-white p-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]" style={{ fontFamily: "Georgia, Palatino, serif" }}>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <h3 className="font-serif text-2xl font-semibold text-[#0D1B2A]">Add property</h3>
+                    <p className="text-sm text-[#7A7060]">Connect a property and import its Airbnb calendar.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPropertyForm(true)}
+                    className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#B8860B] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#9F7408]"
+                  >
+                    + Add Property
+                  </button>
+                </div>
+              </section>
+
+              {showAddPropertyForm ? (
+                <div className="space-y-3 rounded-[14px] border border-[#E5E0D8] bg-white p-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]" style={{ fontFamily: "Georgia, Palatino, serif" }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="font-serif text-xl font-semibold text-[#0D1B2A]">Add Property</h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddPropertyForm(false)}
+                      className="rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+
+                  <PropertyForm
           propertyName={propertyName}
           setPropertyName={setPropertyName}
           propertyAddress={propertyAddress}
@@ -2391,8 +2438,11 @@ export default function HomePage() {
           providerInstructions={providerInstructions}
           setProviderInstructions={setProviderInstructions}
           loading={savingProperty}
+          submitLabel="Save Property"
           onSubmit={handleSaveProperty}
-            />
+                />
+              </div>
+            ) : null}
 
         {propertyError ? (
           <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -2418,39 +2468,14 @@ export default function HomePage() {
           </p>
         ) : null}
 
-        {savedProperty ? (
-          <article className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-semibold text-slate-900">Saved property</h3>
-            <p className="text-sm text-slate-700">
-              <span className="font-medium text-slate-900">Name:</span> {savedProperty.name}
-            </p>
-            {savedProperty.address ? (
-              <p className="text-sm text-slate-700">
-                <span className="font-medium text-slate-900">Address:</span> {savedProperty.address}
-              </p>
-            ) : null}
-            <p className="text-sm text-slate-700">
-              <span className="font-medium text-slate-900">Airbnb calendar URL:</span>{" "}
-              {savedProperty.airbnbCalendarUrl}
-            </p>
-            {savedProperty.listingUrl ? (
-              <p className="text-sm text-slate-700">
-                <span className="font-medium text-slate-900">Listing URL:</span>{" "}
-                <a
-                  href={savedProperty.listingUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sky-700 underline"
-                >
-                  {savedProperty.listingUrl}
-                </a>
-              </p>
-            ) : null}
-          </article>
+        {error ? (
+          <p className="rounded-lg border border-[#F2C2BD] bg-[#FDECEC] px-4 py-3 text-sm text-[#B42318]">
+            {error}
+          </p>
         ) : null}
 
             <section className="space-y-3">
-          <h3 className="text-sm font-semibold text-slate-900">Saved properties</h3>
+          <h3 className="font-serif text-xl font-semibold text-[#0D1B2A]" style={{ fontFamily: "Georgia, Palatino, serif" }}>Saved properties</h3>
 
           {loadingProperties ? (
             <EmptyState
@@ -2470,54 +2495,43 @@ export default function HomePage() {
               {properties.map((property) => (
                 <article
                   key={property.id}
-                  className={`space-y-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${
+                  className={`space-y-3 rounded-[14px] border border-[#E5E0D8] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] ${
                     selectedPropertyId === property.id
-                      ? "ring-1 ring-slate-300 bg-slate-50"
+                      ? "ring-1 ring-[#B8860B]/30"
                       : ""
                   }`}
+                  style={{ fontFamily: "Georgia, Palatino, serif" }}
                 >
-                  <p className="text-sm font-semibold text-slate-900">{property.name}</p>
+                  <div className="space-y-1">
+                    <p className="font-serif text-lg font-semibold text-[#0D1B2A]">{property.name}</p>
+                    {property.address ? (
+                      <p className="text-sm text-[#7A7060]">{property.address}</p>
+                    ) : null}
+                  </div>
+
+                  <p className="text-sm text-[#1A1208]">
+                    Airbnb calendar · {property.calendarLastSyncedAt ? "Synced" : "Needs sync"}
+                  </p>
+
+                  <p className="text-sm text-[#7A7060]">
+                    Last sync: {property.calendarLastSyncedAt ? formatDateTimeLabel(property.calendarLastSyncedAt) : "Not synced yet"}
+                  </p>
+
                   {property.address ? (
-                    <p className="text-sm text-slate-700">{property.address}</p>
-                  ) : null}
-                  {property.listingUrl ? (
-                    <p className="text-sm text-slate-700">
-                      <a
-                        href={property.listingUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sky-700 underline"
-                      >
-                        Listing
-                      </a>
-                    </p>
+                    <p className="text-sm text-[#7A7060]">{property.address}</p>
                   ) : null}
                   {formatBedroomBathroomSummary(property) ? (
-                    <p className="text-sm text-slate-700">{formatBedroomBathroomSummary(property)}</p>
-                  ) : null}
-                  {property.squareFeet !== null ? (
-                    <p className="text-sm text-slate-700">Square feet: {property.squareFeet}</p>
+                    <p className="text-sm text-[#7A7060]">{formatBedroomBathroomSummary(property)}</p>
                   ) : null}
                   {property.maxGuests !== null ? (
-                    <p className="text-sm text-slate-700">Max guests: {property.maxGuests}</p>
+                    <p className="text-sm text-[#7A7060]">Max guests: {property.maxGuests}</p>
                   ) : null}
-                  {property.defaultCheckInTime || property.defaultCheckOutTime ? (
-                    <p className="text-sm text-slate-700">
-                      Check-in/out: {property.defaultCheckInTime || "-"} / {property.defaultCheckOutTime || "-"}
-                    </p>
-                  ) : null}
-                  {property.parkingInfo ? (
-                    <p className="text-sm text-slate-700">Parking: {property.parkingInfo}</p>
-                  ) : null}
-                  {property.cleaningNotes ? (
-                    <p className="text-sm text-slate-700">Cleaning notes: {property.cleaningNotes}</p>
-                  ) : null}
-                  <p className="text-sm text-slate-700">{property.airbnbCalendarUrl}</p>
+
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => handleStartEditingProperty(property)}
-                      className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2]"
                     >
                       Edit property
                     </button>
@@ -2525,30 +2539,57 @@ export default function HomePage() {
                       type="button"
                       onClick={() => handleSyncSavedProperty(property)}
                       disabled={syncingPropertyId === property.id}
-                      className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-[10px] bg-[#0D1B2A] px-3 py-2 text-sm font-medium text-[#FAF7F2] transition hover:bg-[#13293D] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {syncingPropertyId === property.id ? "Syncing..." : "Sync calendar"}
+                      {syncingPropertyId === property.id ? "Syncing..." : "Sync Calendar"}
                     </button>
                     <button
                       type="button"
                       onClick={() => handleViewSavedEvents(property)}
                       disabled={loadingEventsPropertyId === property.id}
-                      className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {loadingEventsPropertyId === property.id ? "Loading..." : "View saved events"}
+                      {loadingEventsPropertyId === property.id
+                        ? "Loading..."
+                        : expandedPropertyEventsId === property.id
+                          ? "Hide events"
+                          : "View loaded events"}
                     </button>
                     <button
                       type="button"
                       onClick={() => handleGenerateCleaningJobs(property)}
                       disabled={generatingJobsPropertyId === property.id}
-                      className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {generatingJobsPropertyId === property.id ? "Generating..." : "Generate cleaning jobs"}
                     </button>
                   </div>
 
+                  {expandedPropertyEventsId === property.id ? (
+                    <div className="space-y-2 rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] p-3">
+                      <p className="text-sm font-semibold text-[#0D1B2A]">Loaded events</p>
+                      {selectedPropertyId === property.id && items.length > 0 ? (
+                        <div className="space-y-2">
+                          {items.map((item) => (
+                            <div key={item.id} className="rounded-[10px] border border-[#E5E0D8] bg-white p-3">
+                              <p className="text-sm font-semibold text-[#1A1208]">{item.summary || "Reservation"}</p>
+                              <p className="text-xs text-[#7A7060]">
+                                {formatLongDateLabel(item.checkInDate)} to {formatLongDateLabel(item.checkOutDate)}
+                              </p>
+                              <p className="text-xs text-[#7A7060]">Source: {item.source || "Airbnb"}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : loadingEventsPropertyId === property.id ? (
+                        <p className="text-sm text-[#7A7060]">Loading events...</p>
+                      ) : (
+                        <p className="text-sm text-[#7A7060]">No loaded events for this property.</p>
+                      )}
+                    </div>
+                  ) : null}
+
                   {editingPropertyId === property.id ? (
-                    <div className="mt-3 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="mt-3 space-y-3 rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] p-3">
                       <PropertyForm
                         mode="edit"
                         propertyName={editingPropertyForm.propertyName}
@@ -2636,6 +2677,7 @@ export default function HomePage() {
                           setEditingPropertyForm((previous) => ({ ...previous, providerInstructions: value }))
                         }
                         loading={updatingProperty}
+                        submitLabel="Save Property"
                         onSubmit={handleUpdateProperty}
                       />
 
@@ -2643,7 +2685,7 @@ export default function HomePage() {
                         type="button"
                         onClick={handleCancelEditingProperty}
                         disabled={updatingProperty}
-                        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2] disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Cancel
                       </button>
@@ -2804,41 +2846,7 @@ export default function HomePage() {
           </section>
         ) : null}
 
-        {ownerActiveTab === "properties" ? (
-          <>
-            <section className="space-y-2">
-          {selectedProperty ? (
-            <p className="text-sm text-slate-700">
-              Showing calendar for: <span className="font-semibold">{selectedProperty.name}</span>
-            </p>
-          ) : null}
-          <h3 className="text-sm font-semibold text-slate-900">Upcoming stays</h3>
-            </section>
-
-        {error ? (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </p>
-        ) : null}
-
-        {items.length > 0 ? (
-          <>
-            <p className="text-sm font-medium text-slate-700">
-              Loaded {items.length} {items.length === 1 ? "event" : "events"}
-            </p>
-            <div className="grid gap-3 md:grid-cols-2">
-              {items.map((item) => (
-                <CalendarEventCard key={item.id} item={item} />
-              ))}
-            </div>
-          </>
-        ) : null}
-
-            {!loading && items.length === 0 ? (
-          <EmptyState message="No events loaded yet." />
-            ) : null}
-          </>
-        ) : null}
+        {ownerActiveTab === "properties" ? null : null}
 
         {ownerActiveTab === "overview" || ownerActiveTab === "jobs" ? (
           <section className="space-y-3">
@@ -2910,6 +2918,11 @@ export default function HomePage() {
                     providers={serviceProviders}
                     loading={creatingAdHocJob}
                     onSubmit={handleCreateAdHocJob}
+                    onCancel={() => {
+                      setShowCreateJob(false);
+                      setAdHocJobError("");
+                      setAdHocJobSuccess("");
+                    }}
                   />
                 </div>
               ) : null}

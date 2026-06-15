@@ -41,16 +41,8 @@ type AdHocJobFormProps = {
   providers: AdHocJobProvider[];
   loading: boolean;
   onSubmit: (payload: AdHocJobFormPayload) => Promise<void> | void;
+  onCancel?: () => void;
 };
-
-const REQUESTED_SERVICE_TYPES = [
-  { value: "cleaning", label: "Cleaning" },
-  { value: "maintenance", label: "Maintenance" },
-  { value: "restock", label: "Restock" },
-  { value: "inspection", label: "Inspection" },
-  { value: "laundry", label: "Laundry" },
-  { value: "trash_removal", label: "Trash removal" },
-];
 
 const PRIORITIES = [
   { value: "low", label: "Low" },
@@ -89,7 +81,7 @@ function parseDuration(value: string): number | null | "invalid" {
   return Number.isInteger(parsed) ? parsed : "invalid";
 }
 
-export default function AdHocJobForm({ properties, providers, loading, onSubmit }: AdHocJobFormProps) {
+export default function AdHocJobForm({ properties, providers, loading, onSubmit, onCancel }: AdHocJobFormProps) {
   const [propertyId, setPropertyId] = useState(properties[0]?.id ?? "");
   const [title, setTitle] = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
@@ -157,28 +149,35 @@ export default function AdHocJobForm({ properties, providers, loading, onSubmit 
     }
   }
 
+  const showOtherServicePicker = requestedServiceType === "laundry" || requestedServiceType === "trash_removal";
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-5 rounded-[14px] border border-[#E5E0D8] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] sm:p-5"
+      style={{ fontFamily: "Georgia, Palatino, serif" }}
+    >
       <div className="space-y-1">
-        <h4 className="text-sm font-semibold text-slate-900">Create ad hoc job</h4>
-        <p className="text-sm text-slate-600">
-          Create one-off cleaning, maintenance, restock, inspection, laundry, or trash-removal jobs.
+        <h4 className="text-xl font-semibold text-[#0D1B2A]">Create ad hoc job</h4>
+        <p className="text-sm text-[#7A7060]">
+          Schedule one-time cleaning, maintenance, restock, or owner task.
         </p>
       </div>
 
       {localError ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{localError}</p>
+        <p className="rounded-lg border border-[#F2C2BD] bg-[#FDECEC] px-3 py-2 text-sm text-[#B42318]">{localError}</p>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <label className="space-y-1 text-sm text-slate-700">
-          <span className="block font-medium text-slate-900">Property</span>
+      <div className="space-y-3 border-t border-[#E5E0D8] pt-4">
+        <h5 className="text-xs font-semibold uppercase tracking-[0.08em] text-[#0D1B2A]">⊞ Property</h5>
+        <label className="space-y-1 text-sm text-[#7A7060]">
+          <span className="block font-medium text-[#1A1208]">Property</span>
           <select
             value={propertyId}
             onChange={(event) => setPropertyId(event.target.value)}
             required
             disabled={loading}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-[#1A1208] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <option value="">Select property</option>
             {properties.map((property) => (
@@ -188,154 +187,175 @@ export default function AdHocJobForm({ properties, providers, loading, onSubmit 
             ))}
           </select>
         </label>
+      </div>
 
-        <label className="space-y-1 text-sm text-slate-700">
-          <span className="block font-medium text-slate-900">Job title</span>
+      <div className="space-y-3 border-t border-[#E5E0D8] pt-4">
+        <h5 className="text-xs font-semibold uppercase tracking-[0.08em] text-[#0D1B2A]">✦ Job Details</h5>
+        <label className="space-y-1 text-sm text-[#7A7060]">
+          <span className="block font-medium text-[#1A1208]">Job title</span>
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             required
             disabled={loading}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-[#1A1208] placeholder:text-[#7A7060] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
             placeholder="Deep clean after long stay"
           />
         </label>
 
-        <label className="space-y-1 text-sm text-slate-700">
-          <span className="block font-medium text-slate-900">Scheduled date</span>
-          <input
-            type="date"
-            value={scheduledDate}
-            onChange={(event) => setScheduledDate(event.target.value)}
-            required
+        <label className="space-y-1 text-sm text-[#7A7060]">
+          <span className="block font-medium text-[#1A1208]">Owner instructions</span>
+          <textarea
+            value={ownerInstructions}
+            onChange={(event) => setOwnerInstructions(event.target.value)}
+            rows={3}
             disabled={loading}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-          />
-        </label>
-
-        <label className="space-y-1 text-sm text-slate-700">
-          <span className="block font-medium text-slate-900">Due time</span>
-          <input
-            type="time"
-            value={dueTime}
-            onChange={(event) => setDueTime(event.target.value)}
-            disabled={loading}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-          />
-        </label>
-
-        <label className="space-y-1 text-sm text-slate-700">
-          <span className="block font-medium text-slate-900">Requested service type</span>
-          <select
-            value={requestedServiceType}
-            onChange={(event) => setRequestedServiceType(event.target.value)}
-            required
-            disabled={loading}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {REQUESTED_SERVICE_TYPES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="space-y-1 text-sm text-slate-700">
-          <span className="block font-medium text-slate-900">Priority</span>
-          <select
-            value={priority}
-            onChange={(event) => setPriority(event.target.value)}
-            disabled={loading}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {PRIORITIES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="space-y-1 text-sm text-slate-700">
-          <span className="block font-medium text-slate-900">Estimated duration (minutes)</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={estimatedDurationMinutes}
-            onChange={(event) => setEstimatedDurationMinutes(event.target.value)}
-            disabled={loading}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-            placeholder="90"
+            className="w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-[#1A1208] placeholder:text-[#7A7060] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
+            placeholder="Fix bathroom sink, replace towels, etc."
           />
         </label>
       </div>
 
-      <label className="space-y-1 text-sm text-slate-700">
-        <span className="block font-medium text-slate-900">Owner instructions</span>
-        <textarea
-          value={ownerInstructions}
-          onChange={(event) => setOwnerInstructions(event.target.value)}
-          rows={3}
-          disabled={loading}
-          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-          placeholder="Fix bathroom sink, replace towels, etc."
-        />
-      </label>
-
-      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <p className="text-sm font-medium text-slate-900">Assignment</p>
+      <div className="space-y-3 border-t border-[#E5E0D8] pt-4">
+        <h5 className="text-xs font-semibold uppercase tracking-[0.08em] text-[#0D1B2A]">🧹 Service</h5>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setAssignmentMode("unassigned");
-              setAssignedProviderId("");
-            }}
-            disabled={loading}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-              assignmentMode === "unassigned"
-                ? "bg-slate-900 text-white"
-                : "bg-white text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            Leave unassigned
-          </button>
-          <button
-            type="button"
-            onClick={() => setAssignmentMode("owner")}
-            disabled={loading}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-              assignmentMode === "owner"
-                ? "bg-slate-900 text-white"
-                : "bg-white text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            Self-assign to owner
-          </button>
-          <button
-            type="button"
-            onClick={() => setAssignmentMode("provider")}
-            disabled={loading}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-              assignmentMode === "provider"
-                ? "bg-slate-900 text-white"
-                : "bg-white text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            Assign to provider
-          </button>
+          {[
+            { label: "Cleaning", value: "cleaning" },
+            { label: "Maintenance", value: "maintenance" },
+            { label: "Restock", value: "restock" },
+            { label: "Inspection", value: "inspection" },
+            { label: "Other", value: "laundry" },
+          ].map((chip) => {
+            const isActive = chip.value === "laundry"
+              ? requestedServiceType === "laundry" || requestedServiceType === "trash_removal"
+              : requestedServiceType === chip.value;
+
+            return (
+              <button
+                key={chip.label}
+                type="button"
+                disabled={loading}
+                onClick={() => setRequestedServiceType(chip.value)}
+                className={`min-h-11 rounded-full border px-4 py-2 text-sm font-medium transition ${
+                  isActive
+                    ? "border-[#0D1B2A] bg-[#0D1B2A] text-[#FAF7F2]"
+                    : "border-[#E5E0D8] bg-white text-[#0D1B2A] hover:bg-[#FAF7F2]"
+                } disabled:cursor-not-allowed disabled:opacity-60`}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
         </div>
 
+        {showOtherServicePicker ? (
+          <label className="space-y-1 text-sm text-[#7A7060]">
+            <span className="block font-medium text-[#1A1208]">Other service type</span>
+            <select
+              value={requestedServiceType}
+              onChange={(event) => setRequestedServiceType(event.target.value)}
+              required
+              disabled={loading}
+              className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-[#1A1208] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="laundry">Laundry</option>
+              <option value="trash_removal">Trash removal</option>
+            </select>
+          </label>
+        ) : null}
+      </div>
+
+      <div className="space-y-3 border-t border-[#E5E0D8] pt-4">
+        <h5 className="text-xs font-semibold uppercase tracking-[0.08em] text-[#0D1B2A]">⏱ Schedule</h5>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="space-y-1 text-sm text-[#7A7060]">
+            <span className="block font-medium text-[#1A1208]">Date</span>
+            <input
+              type="date"
+              value={scheduledDate}
+              onChange={(event) => setScheduledDate(event.target.value)}
+              required
+              disabled={loading}
+              className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-[#1A1208] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </label>
+
+          <label className="space-y-1 text-sm text-[#7A7060]">
+            <span className="block font-medium text-[#1A1208]">Time</span>
+            <input
+              type="time"
+              value={dueTime}
+              onChange={(event) => setDueTime(event.target.value)}
+              disabled={loading}
+              className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-[#1A1208] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </label>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="space-y-1 text-sm text-[#7A7060]">
+            <span className="block font-medium text-[#1A1208]">Priority</span>
+            <select
+              value={priority}
+              onChange={(event) => setPriority(event.target.value)}
+              disabled={loading}
+              className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-[#1A1208] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {PRIORITIES.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="space-y-1 text-sm text-[#7A7060]">
+            <span className="block font-medium text-[#1A1208]">Duration (minutes)</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={estimatedDurationMinutes}
+              onChange={(event) => setEstimatedDurationMinutes(event.target.value)}
+              disabled={loading}
+              className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-[#1A1208] placeholder:text-[#7A7060] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
+              placeholder="90"
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className="space-y-3 border-t border-[#E5E0D8] pt-4">
+        <h5 className="text-xs font-semibold uppercase tracking-[0.08em] text-[#0D1B2A]">👤 Assignment</h5>
+
+        <label className="space-y-1 text-sm text-[#7A7060]">
+          <span className="block font-medium text-[#1A1208]">Assignment mode</span>
+          <select
+            value={assignmentMode}
+            onChange={(event) => {
+              const nextValue = event.target.value as "unassigned" | "owner" | "provider";
+              setAssignmentMode(nextValue);
+              if (nextValue !== "provider") {
+                setAssignedProviderId("");
+              }
+            }}
+            disabled={loading}
+            className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-[#1A1208] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <option value="unassigned">Leave unassigned</option>
+            <option value="owner">Self-assign to owner</option>
+            <option value="provider">Assign to provider</option>
+          </select>
+        </label>
+
         {assignmentMode === "provider" ? (
-          <label className="space-y-1 text-sm text-slate-700">
-            <span className="block font-medium text-slate-900">Provider</span>
+          <label className="space-y-1 text-sm text-[#7A7060]">
+            <span className="block font-medium text-[#1A1208]">Provider</span>
             <select
               value={providerSelectValue}
               onChange={(event) => setAssignedProviderId(event.target.value)}
               required
               disabled={loading || matchingProviders.length === 0}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-[#1A1208] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <option value="">Select provider</option>
               {matchingProviders.map((provider) => (
@@ -345,19 +365,35 @@ export default function AdHocJobForm({ properties, providers, loading, onSubmit 
               ))}
             </select>
             {matchingProviders.length === 0 ? (
-              <p className="text-xs text-slate-500">No active providers match the selected service type.</p>
+              <p className="text-xs text-[#D97706]">No active providers match the selected service type.</p>
             ) : null}
           </label>
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#E5E0D8] pt-4">
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => {
+            if (assignmentMode !== "unassigned") {
+              setAssignmentMode("unassigned");
+              setAssignedProviderId("");
+              return;
+            }
+            onCancel?.();
+          }}
+          className="min-h-11 rounded-[10px] border border-[#E5E0D8] bg-white px-4 py-2 text-sm font-medium text-[#0D1B2A] transition hover:bg-[#FAF7F2] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {assignmentMode === "unassigned" ? "Cancel" : "Leave unassigned"}
+        </button>
+
         <button
           type="submit"
           disabled={loading}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-h-11 rounded-[10px] bg-[#0D1B2A] px-5 py-2 text-sm font-medium text-[#FAF7F2] transition hover:bg-[#13293D] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "Creating..." : "Create ad hoc job"}
+          {loading ? "Creating..." : "Create Job"}
         </button>
       </div>
     </form>
