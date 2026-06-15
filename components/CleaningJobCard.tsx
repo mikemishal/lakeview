@@ -76,6 +76,8 @@ type CleanerProviderOption = {
   id: string;
   name: string;
   companyName: string | null;
+  cleaningFlatRateCents?: number | null;
+  cleaningHourlyRateCents?: number | null;
 };
 
 type CleaningJobCardProps = {
@@ -264,6 +266,13 @@ function toDateOnly(value: string | Date): string {
   return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}-${String(
     parsed.getUTCDate()
   ).padStart(2, "0")}`;
+}
+
+function formatCentsToDollars(cents: number | null | undefined): string {
+  if (typeof cents !== "number" || cents < 0) {
+    return "Not set";
+  }
+  return `$${(cents / 100).toFixed(2)}`;
 }
 
 export default function CleaningJobCard({
@@ -462,6 +471,14 @@ export default function CleaningJobCard({
           <p><span className="font-medium text-[#0D1B2A]">Priority:</span> {formatPriority(job.priority)}</p>
           {job.dueTime ? <p><span className="font-medium text-[#0D1B2A]">Due time:</span> {job.dueTime}</p> : null}
           {job.estimatedDurationMinutes !== null ? <p><span className="font-medium text-[#0D1B2A]">Duration:</span> {job.estimatedDurationMinutes} min</p> : null}
+          {job.requestedServiceType === "cleaning" && job.assignedProviderId && job.assignedProvider ? (
+            <p>
+              <span className="font-medium text-[#0D1B2A]">Price:</span>{" "}
+              {cleanerProviders.find((p) => p.id === job.assignedProviderId)?.cleaningFlatRateCents
+                ? formatCentsToDollars(cleanerProviders.find((p) => p.id === job.assignedProviderId)?.cleaningFlatRateCents)
+                : <span className="text-[#D97706]">Price not set</span>}
+            </p>
+          ) : null}
         </div>
 
         {job.ownerInstructions ? (
@@ -504,12 +521,25 @@ export default function CleaningJobCard({
                 disabled={providerUpdating}
                 className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-sm text-[#0D1B2A] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <option value="">Needs provider</option>
-                {cleanerProviders.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.companyName ? `${provider.name} (${provider.companyName})` : provider.name}
-                  </option>
-                ))}
+                <option value="">
+                  {cleanerProviders.length === 0 ? "No team providers available" : "Needs provider"}
+                </option>
+                {cleanerProviders.map((provider) => {
+                  const priceLabel = provider.cleaningFlatRateCents
+                    ? ` — ${formatCentsToDollars(provider.cleaningFlatRateCents)}`
+                    : provider.cleaningHourlyRateCents
+                    ? ` — $${(provider.cleaningHourlyRateCents / 100).toFixed(2)}/hr`
+                    : " — Price not set";
+                  const providerLabel = provider.companyName
+                    ? `${provider.name} (${provider.companyName})`
+                    : provider.name;
+                  return (
+                    <option key={provider.id} value={provider.id}>
+                      {providerLabel}
+                      {priceLabel}
+                    </option>
+                  );
+                })}
               </select>
               {providerUpdating ? <p className="text-xs text-[#7A7060]">Updating assignment...</p> : null}
             </div>

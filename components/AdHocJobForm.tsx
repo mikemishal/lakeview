@@ -21,6 +21,8 @@ type AdHocJobProvider = {
   primaryServiceType: string | null;
   active: boolean;
   capabilities: AdHocJobProviderCapability[];
+  cleaningFlatRateCents?: number | null;
+  cleaningHourlyRateCents?: number | null;
 };
 
 export type AdHocJobFormPayload = {
@@ -79,6 +81,13 @@ function parseDuration(value: string): number | null | "invalid" {
 
   const parsed = Number(trimmed);
   return Number.isInteger(parsed) ? parsed : "invalid";
+}
+
+function formatCentsToDollars(cents: number | null | undefined): string {
+  if (typeof cents !== "number" || cents < 0) {
+    return "Not set";
+  }
+  return `$${(cents / 100).toFixed(2)}`;
 }
 
 export default function AdHocJobForm({ properties, providers, loading, onSubmit, onCancel }: AdHocJobFormProps) {
@@ -348,26 +357,65 @@ export default function AdHocJobForm({ properties, providers, loading, onSubmit,
         </label>
 
         {assignmentMode === "provider" ? (
-          <label className="space-y-1 text-sm text-[#7A7060]">
-            <span className="block font-medium text-[#1A1208]">Provider</span>
-            <select
-              value={providerSelectValue}
-              onChange={(event) => setAssignedProviderId(event.target.value)}
-              required
-              disabled={loading || matchingProviders.length === 0}
-              className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-[#1A1208] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <option value="">Select provider</option>
-              {matchingProviders.map((provider) => (
-                <option key={provider.id} value={provider.id}>
-                  {provider.companyName ? `${provider.name} (${provider.companyName})` : provider.name}
+          <>
+            <label className="space-y-1 text-sm text-[#7A7060]">
+              <span className="block font-medium text-[#1A1208]">Provider</span>
+              <select
+                value={providerSelectValue}
+                onChange={(event) => setAssignedProviderId(event.target.value)}
+                required
+                disabled={loading || matchingProviders.length === 0}
+                className="min-h-11 w-full rounded-[10px] border border-[#E5E0D8] bg-white px-3 py-2 text-[#1A1208] outline-none transition focus:border-[#B8860B] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <option value="">
+                  {matchingProviders.length === 0 ? "No team providers available" : "Select provider"}
                 </option>
-              ))}
-            </select>
-            {matchingProviders.length === 0 ? (
-              <p className="text-xs text-[#D97706]">No active providers match the selected service type.</p>
+                {matchingProviders.map((provider) => {
+                  const priceLabel =
+                    requestedServiceType === "cleaning"
+                      ? provider.cleaningFlatRateCents
+                        ? ` — ${formatCentsToDollars(provider.cleaningFlatRateCents)}`
+                        : provider.cleaningHourlyRateCents
+                        ? ` — $${(provider.cleaningHourlyRateCents / 100).toFixed(2)}/hr`
+                        : " — Price not set"
+                      : "";
+                  const providerLabel = provider.companyName
+                    ? `${provider.name} (${provider.companyName})`
+                    : provider.name;
+                  return (
+                    <option key={provider.id} value={provider.id}>
+                      {providerLabel}
+                      {priceLabel}
+                    </option>
+                  );
+                })}
+              </select>
+              {matchingProviders.length === 0 ? (
+                <p className="text-xs text-[#D97706]">No active providers match the selected service type.</p>
+              ) : null}
+            </label>
+
+            {selectedProviderIsValid && requestedServiceType === "cleaning" ? (
+              <div className="rounded-[10px] border border-[#E5E0D8] bg-[#FAF7F2] p-3">
+                <p className="text-sm text-[#1A1208]">
+                  <span className="font-medium">Estimated price:</span>{" "}
+                  {(() => {
+                    const provider = matchingProviders.find((p) => p.id === assignedProviderId);
+                    if (!provider) return "Price not set";
+                    if (provider.cleaningFlatRateCents) {
+                      return formatCentsToDollars(provider.cleaningFlatRateCents);
+                    }
+                    if (provider.cleaningHourlyRateCents && estimatedDurationMinutes) {
+                      const hours = Number(estimatedDurationMinutes) / 60;
+                      const estimate = (provider.cleaningHourlyRateCents / 100) * hours;
+                      return `$${estimate.toFixed(2)}`;
+                    }
+                    return "Price not set";
+                  })()}
+                </p>
+              </div>
             ) : null}
-          </label>
+          </>
         ) : null}
       </div>
 

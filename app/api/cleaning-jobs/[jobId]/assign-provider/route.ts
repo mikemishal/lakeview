@@ -74,6 +74,23 @@ export async function PATCH(request: Request, context: RouteContext) {
         );
       }
 
+      // Validate provider is in owner's My Team
+      const teamMember = await prisma.ownerProviderTeamMember.findUnique({
+        where: {
+          ownerProfileId_serviceProviderId: {
+            ownerProfileId: ownerProfile.id,
+            serviceProviderId: providerId,
+          },
+        },
+      });
+
+      if (!teamMember || !teamMember.isActive) {
+        return NextResponse.json(
+          { error: "Provider must be added to My Team before assignment." },
+          { status: 400 }
+        );
+      }
+
       const cleaningJob = await prisma.cleaningJob.update({
         where: { id: jobId },
         data: {
