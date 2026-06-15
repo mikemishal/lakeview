@@ -525,6 +525,7 @@ export default function HomePage() {
   const [creatingAdHocJob, setCreatingAdHocJob] = useState(false);
   const [adHocJobError, setAdHocJobError] = useState("");
   const [adHocJobSuccess, setAdHocJobSuccess] = useState("");
+  const [showCreateJob, setShowCreateJob] = useState(false);
   const [generatingJobsPropertyId, setGeneratingJobsPropertyId] = useState("");
   const [cleaningJobGenerationMessage, setCleaningJobGenerationMessage] = useState("");
   const [cleaningJobsView, setCleaningJobsView] = useState<"list" | "grouped" | "calendar">(
@@ -624,24 +625,31 @@ export default function HomePage() {
       companyName: provider.companyName,
     }));
 
-  const filteredCleaningJobs = (() => {
-    let result = cleaningJobs;
-
-    // Apply status filter
-    if (cleaningJobStatusFilter !== "all") {
-      result = result.filter((job) => job.status === cleaningJobStatusFilter);
+  // Determine dashboard filter and label from URL
+  const dashboardFilter = searchParams.get("dashboardFilter");
+  const dashboardFilterConfig = (() => {
+    switch (dashboardFilter) {
+      case "today":
+        return { active: "today", label: "Today's Jobs", status: "all", provider: "all" };
+      case "needs-assignment":
+        return { active: "needs-assignment", label: "Needs Assignment", status: "needs_assignment", provider: "all" };
+      case "upcoming":
+        return { active: "upcoming", label: "Upcoming Jobs", status: "all", provider: "all" };
+      case "urgent-issues":
+        return { active: "urgent-issues", label: "Urgent Issues", status: "all", provider: "all" };
+      default:
+        return { active: null, label: "", status: "all", provider: "all" };
     }
-
-    // Apply provider filter
-    if (cleaningJobProviderFilter === "unassigned") {
-      result = result.filter((job) => job.assignedProviderId === null);
-    } else if (cleaningJobProviderFilter !== "all") {
-      result = result.filter((job) => job.assignedProviderId === cleaningJobProviderFilter);
-    }
-
-    return result;
   })();
 
+  // Apply dashboard filter to internal state
+  const effectiveDashboardFilterActive = dashboardFilterConfig.active;
+  const effectiveDashboardFilterLabel = dashboardFilterConfig.label;
+  const effectiveCleaningJobStatusFilter = dashboardFilterConfig.active ? dashboardFilterConfig.status : cleaningJobStatusFilter;
+  const effectiveCleaningJobProviderFilter = dashboardFilterConfig.active ? dashboardFilterConfig.provider : cleaningJobProviderFilter;
+  const effectiveShowJobs = dashboardFilterConfig.active ? true : showJobs;
+
+  // Date calculations for filtering
   const todayDateOnly = toDateOnly(new Date());
   const futureRangeEndDateOnly = addDaysToDateOnly(todayDateOnly, futureSummaryRange);
   const futureJobsAll = cleaningJobs.filter(
@@ -654,7 +662,36 @@ export default function HomePage() {
   });
   const pastJobs = cleaningJobs.filter((job) => toDateOnly(job.scheduledDate) < todayDateOnly);
 
-  const futureNeedsAssignmentJobs = futureJobsInRange.filter(
+  const filteredCleaningJobs = (() => {
+    let result = cleaningJobs;
+
+    // Apply dashboard filter if active
+    if (effectiveDashboardFilterActive === "today") {
+      result = result.filter((job) => toDateOnly(job.scheduledDate) === todayDateOnly);
+    } else if (effectiveDashboardFilterActive === "urgent-issues") {
+      result = result.filter(
+        (job) => job.maintenanceNeeded || job.restockNeeded || job.damageFound
+      );
+    } else if (effectiveDashboardFilterActive === "upcoming") {
+      result = futureJobsInRange;
+    }
+
+    // Apply status filter
+    if (effectiveCleaningJobStatusFilter !== "all") {
+      result = result.filter((job) => job.status === effectiveCleaningJobStatusFilter);
+    }
+
+    // Apply provider filter
+    if (effectiveCleaningJobProviderFilter === "unassigned") {
+      result = result.filter((job) => job.assignedProviderId === null);
+    } else if (effectiveCleaningJobProviderFilter !== "all") {
+      result = result.filter((job) => job.assignedProviderId === effectiveCleaningJobProviderFilter);
+    }
+
+    return result;
+  })();
+
+  const futureNeedsAssignmentJobs = futureJobsAll.filter(
     (job) => job.status === "needs_assignment"
   );
   const futureAssignedJobs = futureJobsInRange.filter((job) => job.status === "assigned");
@@ -2160,57 +2197,41 @@ export default function HomePage() {
             </section>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <button
-                type="button"
-                onClick={() => {
-                  updateOwnerTab("jobs");
-                  setOwnerActiveQueue("future_all");
-                }}
-                className="rounded-xl border border-[#E5E0D8] border-l-[3px] border-l-[#1A6B60] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2]"
+              <Link
+                href="?tab=jobs&dashboardFilter=today"
+                className="rounded-xl border border-[#E5E0D8] border-l-[3px] border-l-[#1A6B60] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2] cursor-pointer"
               >
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#7A7060]">Today&apos;s jobs</p>
                 <p className="mt-2 text-[32px] leading-none font-semibold text-[#1A1208]">{todayJobs.length}</p>
-              </button>
+              </Link>
 
-              <button
-                type="button"
-                onClick={() => {
-                  updateOwnerTab("jobs");
-                  setOwnerActiveQueue("future_needs_assignment");
-                }}
-                className={`rounded-xl border border-[#E5E0D8] border-l-[3px] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2] ${
+              <Link
+                href="?tab=jobs&dashboardFilter=needs-assignment"
+                className={`rounded-xl border border-[#E5E0D8] border-l-[3px] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2] cursor-pointer ${
                   futureNeedsAssignment > 0 ? "border-l-[#D97706]" : "border-l-[#1A6B60]"
                 }`}
               >
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#7A7060]">Needs assignment</p>
                 <p className="mt-2 text-[32px] leading-none font-semibold text-[#1A1208]">{futureNeedsAssignment}</p>
-              </button>
+              </Link>
 
-              <button
-                type="button"
-                onClick={() => {
-                  updateOwnerTab("jobs");
-                  setOwnerActiveQueue("issues_all");
-                }}
-                className={`rounded-xl border border-[#E5E0D8] border-l-[3px] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2] ${
+              <Link
+                href="?tab=jobs&dashboardFilter=urgent-issues"
+                className={`rounded-xl border border-[#E5E0D8] border-l-[3px] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2] cursor-pointer ${
                   jobsWithIssues.length > 0 ? "border-l-red-600" : "border-l-[#1A6B60]"
                 }`}
               >
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#7A7060]">Urgent issues</p>
                 <p className="mt-2 text-[32px] leading-none font-semibold text-[#1A1208]">{jobsWithIssues.length}</p>
-              </button>
+              </Link>
 
-              <button
-                type="button"
-                onClick={() => {
-                  updateOwnerTab("jobs");
-                  setOwnerActiveQueue("future_all");
-                }}
-                className="rounded-xl border border-[#E5E0D8] border-l-[3px] border-l-[#1A6B60] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2]"
+              <Link
+                href="?tab=jobs&dashboardFilter=upcoming"
+                className="rounded-xl border border-[#E5E0D8] border-l-[3px] border-l-[#1A6B60] bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:bg-[#FAF7F2] cursor-pointer"
               >
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#7A7060]">Upcoming jobs</p>
                 <p className="mt-2 text-[32px] leading-none font-semibold text-[#1A1208]">{futureJobsInRange.length}</p>
-              </button>
+              </Link>
             </div>
 
             {nextCheckoutJob ? (
@@ -2846,9 +2867,7 @@ export default function HomePage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      adHocJobFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
+                    onClick={() => setShowCreateJob(true)}
                     className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#B8860B] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#9F7408]"
                   >
                     <span className="hidden sm:inline">+ New Job</span>
@@ -2857,45 +2876,88 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div ref={adHocJobFormRef} className="scroll-mt-4">
-                {adHocJobError ? (
-                  <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {adHocJobError}
-                  </p>
-                ) : null}
+              {showCreateJob ? (
+                <div ref={adHocJobFormRef} className="scroll-mt-4 space-y-3 rounded-[14px] border border-[#E5E0D8] bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-semibold text-[#0D1B2A]">Create a new job</h4>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCreateJob(false);
+                        setAdHocJobError("");
+                        setAdHocJobSuccess("");
+                      }}
+                      className="rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-3 py-1.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-white"
+                    >
+                      Cancel
+                    </button>
+                  </div>
 
-                {adHocJobSuccess ? (
-                  <p className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    {adHocJobSuccess}
-                  </p>
-                ) : null}
+                  {adHocJobError ? (
+                    <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {adHocJobError}
+                    </p>
+                  ) : null}
 
-                <AdHocJobForm
-                  properties={properties}
-                  providers={serviceProviders}
-                  loading={creatingAdHocJob}
-                  onSubmit={handleCreateAdHocJob}
-                />
-              </div>
+                  {adHocJobSuccess ? (
+                    <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {adHocJobSuccess}
+                    </p>
+                  ) : null}
+
+                  <AdHocJobForm
+                    properties={properties}
+                    providers={serviceProviders}
+                    loading={creatingAdHocJob}
+                    onSubmit={handleCreateAdHocJob}
+                  />
+                </div>
+              ) : null}
 
               <section className="mt-6 rounded-[14px] border border-[#E5E0D8] bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div className="space-y-1">
-                    <h3 className="font-serif text-xl font-semibold text-[#0D1B2A]">Filter jobs</h3>
-                    <p className="text-sm text-[#7A7060]">Set filters first, then view matching jobs.</p>
+                    {effectiveDashboardFilterActive ? (
+                      <>
+                        <h3 className="font-serif text-xl font-semibold text-[#0D1B2A]">{effectiveDashboardFilterLabel}</h3>
+                        <p className="text-sm text-[#7A7060]">Filtered from dashboard. Adjust filters or clear to see all jobs.</p>
+                      </>
+                    ) : (
+                      <>
+                        <h3 className="font-serif text-xl font-semibold text-[#0D1B2A]">Filter jobs</h3>
+                        <p className="text-sm text-[#7A7060]">Set filters first, then view matching jobs.</p>
+                      </>
+                    )}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowJobs((previous) => !previous)}
-                    className={`inline-flex min-h-11 items-center justify-center rounded-full px-5 py-2.5 text-sm font-medium transition ${
-                      showJobs
-                        ? "bg-[#E8F4F1] text-[#0F6A5F] hover:bg-[#D4E8E4]"
-                        : "bg-[#0D1B2A] text-white shadow-[0_6px_16px_rgba(13,27,42,0.16)] hover:bg-[#0A1420]"
-                    }`}
-                  >
-                    {showJobs ? "Hide Jobs" : "View Jobs"}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {effectiveDashboardFilterActive ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          router.push("?tab=jobs");
+                          setCleaningJobStatusFilter("all");
+                          setCleaningJobProviderFilter("all");
+                          setShowJobs(false);
+                        }}
+                        className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#E5E0D8] bg-[#FAF7F2] px-5 py-2.5 text-sm font-medium text-[#0D1B2A] transition hover:bg-white"
+                      >
+                        Clear filter
+                      </button>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowJobs((previous) => !previous)}
+                      className={`inline-flex min-h-11 items-center justify-center rounded-full px-5 py-2.5 text-sm font-medium transition ${
+                        effectiveShowJobs
+                          ? "bg-[#E8F4F1] text-[#0F6A5F] hover:bg-[#D4E8E4]"
+                          : "bg-[#0D1B2A] text-white shadow-[0_6px_16px_rgba(13,27,42,0.16)] hover:bg-[#0A1420]"
+                      }`}
+                    >
+                      {effectiveShowJobs ? "Hide Jobs" : "View Jobs"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-5 inline-flex rounded-full bg-[#FAF7F2] p-1">
@@ -3030,7 +3092,7 @@ export default function HomePage() {
             </p>
               ) : null}
 
-              {showJobs ? (
+              {effectiveShowJobs ? (
                 <>
                   {!loadingCleaningJobsPropertyId && !cleaningJobsError && cleaningJobs.length === 0 ? (
                 <EmptyState
