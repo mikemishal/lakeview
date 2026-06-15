@@ -1418,12 +1418,24 @@ export default function ProviderPage() {
                 backgroundColor: providerActiveQueue === "notification_job" ? "#FFFBEB" : "#FFFFFF",
               }}
             >
-              <h2 className="text-lg font-semibold" style={{ color: "#0D1B2A" }}>Assigned Work</h2>
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: "#0D1B2A" }}>Work Queue</h2>
+                <p className="mt-0.5 text-sm" style={{ color: "#7A7060" }}>Review assigned jobs, schedule conflicts, and confirmed pay.</p>
+              </div>
 
               {providerActiveQueue === "none" ? (
-                <p className="text-sm" style={{ color: "#7A7060" }}>
-                  Select a summary card above to view work or reset filters to see all assigned jobs.
-                </p>
+                <CleanerSchedule
+                  jobs={cleanerScheduleJobs.filter(
+                    (j) => j.status !== "cancelled" && j.status !== "declined" && j.status !== "completed"
+                  )}
+                  allProviderJobs={cleanerScheduleJobs}
+                  onStatusChange={handleUpdateStatus}
+                  statusUpdatingJobId={updatingStatusJobId}
+                  onNotesChange={handleUpdateNotes}
+                  notesUpdatingJobId={updatingNotesJobId}
+                  onIssueFlagsChange={handleUpdateProviderIssueFlags}
+                  issueFlagsUpdatingJobId={updatingIssueFlagsJobId}
+                />
               ) : (
                 <>
                   <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1467,6 +1479,7 @@ export default function ProviderPage() {
                   {providerQueueJobs.length > 0 ? (
                     <CleanerSchedule
                       jobs={providerQueueJobs}
+                      allProviderJobs={cleanerScheduleJobs}
                       onStatusChange={handleUpdateStatus}
                       statusUpdatingJobId={updatingStatusJobId}
                       onNotesChange={handleUpdateNotes}
@@ -1491,6 +1504,7 @@ export default function ProviderPage() {
             {providerActiveTab === "list" ? (
               <CleanerSchedule
                 jobs={cleanerScheduleJobs}
+                allProviderJobs={cleanerScheduleJobs}
                 onStatusChange={handleUpdateStatus}
                 statusUpdatingJobId={updatingStatusJobId}
                 onNotesChange={handleUpdateNotes}

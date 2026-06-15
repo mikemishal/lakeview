@@ -186,6 +186,42 @@ export default function JobDetailsPanel({ job, onClose }: JobDetailsPanelProps) 
         ) : null}
       </header>
 
+      {/* Job Amount */}
+      {(() => {
+        const qp = job.quotedPrice;
+        let display = "Price not set";
+        let hasPrice = false;
+        if (qp !== null && qp !== undefined && String(qp) !== "") {
+          const amount = parseFloat(String(qp));
+          if (!Number.isNaN(amount)) {
+            display = amount % 1 === 0 ? `$${amount}` : `$${amount.toFixed(2)}`;
+            hasPrice = true;
+          }
+        }
+        return (
+          <div
+            className="rounded-lg p-4"
+            style={{ border: "1px solid #E5E0D8", backgroundColor: "#FAF7F2", borderRadius: "10px" }}
+          >
+            <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "#7A7060" }}>
+              Job Amount
+            </p>
+            <p
+              className="mt-1 font-semibold"
+              style={{ fontSize: "24px", lineHeight: "1.2", color: hasPrice ? "#0D1B2A" : "#D97706" }}
+            >
+              {display}
+            </p>
+            {job.quotedPriceNotes ? (
+              <p className="mt-1 text-xs" style={{ color: "#7A7060" }}>{job.quotedPriceNotes}</p>
+            ) : null}
+            <p className="mt-2 text-xs" style={{ color: "#9CA3AF" }}>
+              Price change requests will be added in a future update.
+            </p>
+          </div>
+        );
+      })()}
+
       <section className="space-y-1 text-sm text-slate-700">
         <h4 className="text-sm font-semibold text-slate-900">Job details</h4>
         <p>Job source: {job.jobSource === "manual" ? "Manual" : "Calendar sync"}</p>
