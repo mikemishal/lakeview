@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import CleanerSchedule, { type CleanerScheduleJob } from "@/components/CleanerSchedule";
 import ProviderJobCalendar from "@/components/ProviderJobCalendar";
-import NotificationPanel, { type AppNotification } from "@/components/NotificationPanel";
+import { type AppNotification } from "@/components/NotificationPanel";
 import AppHeader from "@/components/AppHeader";
 import EmptyState from "@/components/EmptyState";
 import MobileBottomNav from "@/components/MobileBottomNav";
@@ -133,7 +133,6 @@ export default function ProviderPage() {
 
   const [selectedCleanerId, setSelectedCleanerId] = useState("");
   const [cleanerScheduleJobs, setCleanerScheduleJobs] = useState<CleanerScheduleJob[]>([]);
-  const [providerSummaryRange, setProviderSummaryRange] = useState<7 | 30 | 90>(7);
   const [providerActiveQueue, setProviderActiveQueue] = useState<ProviderActionQueue>("none");
   const [loadingSchedule, setLoadingSchedule] = useState(false);
   const [scheduleError, setScheduleError] = useState("");
@@ -791,7 +790,7 @@ export default function ProviderPage() {
   }
 
   const todayDateOnly = toDateOnly(new Date());
-  const futureRangeEndDateOnly = addDaysToDateOnly(todayDateOnly, providerSummaryRange);
+  const futureRangeEndDateOnly = addDaysToDateOnly(todayDateOnly, 7);
 
   const jobsDueToday = cleanerScheduleJobs.filter(
     (job) => toDateOnly(job.scheduledDate) === todayDateOnly
@@ -799,10 +798,6 @@ export default function ProviderPage() {
   const futureJobsAll = cleanerScheduleJobs.filter(
     (job) => toDateOnly(job.scheduledDate) >= todayDateOnly
   );
-  const sortedFutureJobs = [...futureJobsAll].sort(
-    (a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime()
-  );
-  const nextJob = sortedFutureJobs[0] ?? null;
   const futureJobsInRange = futureJobsAll.filter((job) => {
     const scheduledDateOnly = toDateOnly(job.scheduledDate);
     return scheduledDateOnly <= futureRangeEndDateOnly;
@@ -819,7 +814,6 @@ export default function ProviderPage() {
   const maintenanceIssueJobs = cleanerScheduleJobs.filter((job) => job.maintenanceNeeded);
   const restockIssueJobs = cleanerScheduleJobs.filter((job) => job.restockNeeded);
   const damageIssueJobs = cleanerScheduleJobs.filter((job) => job.damageFound);
-  const jobsWithNotes = cleanerScheduleJobs.filter((job) => Boolean(job.notes?.trim()));
   const providerNotificationJobQueue = focusedNotificationJob
     ? [focusedNotificationJob]
     : [];
@@ -915,7 +909,7 @@ export default function ProviderPage() {
     if (providerActiveQueue === "future") {
       return {
         title: "Future jobs",
-        description: `Upcoming jobs within the next ${providerSummaryRange} days.`,
+        description: "Upcoming jobs within the next 7 days.",
       };
     }
 
@@ -996,17 +990,16 @@ export default function ProviderPage() {
       showJobsLink={Boolean(currentProviderProfile && !inviteCodeBlocked)}
     />
     <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 pb-24 sm:px-6 lg:px-8">
-      <header className="mb-8 space-y-2">
-        <p className="text-sm font-medium uppercase tracking-wide text-slate-500">Project Lakeview</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Provider Dashboard</h1>
-        <p className="text-sm text-slate-600">View and update assigned provider jobs and notifications.</p>
+      <header className="mb-8 space-y-1">
+        <h1 className="text-4xl font-semibold tracking-tight" style={{ color: "#0D1B2A" }}>Provider Workbench</h1>
+        <p className="text-base" style={{ color: "#7A7060" }}>Review assigned work, manage schedule, and report issues.</p>
       </header>
 
-      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         {currentProviderProfile ? (
-          <p className="text-sm text-slate-700">
-            Signed in as provider:{" "}
-            <span className="font-semibold">
+          <p className="text-sm" style={{ color: "#7A7060" }}>
+            Signed in as:{" "}
+            <span className="font-semibold" style={{ color: "#0D1B2A" }}>
               {currentProviderProfile.companyName
                 ? `${currentProviderProfile.name} (${currentProviderProfile.companyName})`
                 : currentProviderProfile.name}
@@ -1014,22 +1007,53 @@ export default function ProviderPage() {
           </p>
         ) : null}
 
+        {hasProviderDashboard && pendingAcceptJobs.length > 0 ? (
+          <div
+            className="rounded-lg border-l-4 px-4 py-3"
+            style={{ borderColor: "#D97706", backgroundColor: "#FFFBEB" }}
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "#D97706" }}>
+                  New assignments need your response
+                </p>
+                <p className="mt-1 text-sm" style={{ color: "#92400E" }}>
+                  You have {pendingAcceptJobs.length} job{pendingAcceptJobs.length !== 1 ? "s" : ""} waiting for acceptance.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  updateProviderTab("queue");
+                  setProviderActiveQueue("pending_accept");
+                }}
+                className="ml-4 whitespace-nowrap text-sm font-semibold rounded-md px-3 py-1.5 transition"
+                style={{ color: "#FFFFFF", backgroundColor: "#D97706" }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#B45309")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#D97706")}
+              >
+                Review Assignments
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {loadingCurrentProviderProfile ? (
           <EmptyState
             variant="loading"
-            title="Loading provider access"
-            message="Checking your provider profile and role access."
+            title="Loading provider workbench"
+            message="Checking your provider profile and access."
           />
         ) : null}
 
         {!loadingCurrentProviderProfile && !currentAccountProfile ? (
-          <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <section className="space-y-3 rounded-xl border-l-4 p-4" style={{ borderColor: "#D97706", backgroundColor: "#FFFBEB" }}>
             <div className="space-y-1">
-              <h2 className="text-sm font-semibold text-amber-900">Account profile required</h2>
-              <p className="text-sm text-amber-800">
-                Complete onboarding to finish account setup before using the Provider Dashboard.
+              <h2 className="text-sm font-semibold" style={{ color: "#D97706" }}>Account profile required</h2>
+              <p className="text-sm" style={{ color: "#92400E" }}>
+                Complete onboarding to finish account setup before using the Provider Workbench.
               </p>
-              <Link href="/onboarding" className="text-sm font-medium text-amber-900 underline">
+              <Link href="/onboarding" className="text-sm font-medium underline" style={{ color: "#D97706" }}>
                 Go to onboarding
               </Link>
             </div>
@@ -1037,13 +1061,13 @@ export default function ProviderPage() {
         ) : null}
 
         {!loadingCurrentProviderProfile && currentAccountProfile && inviteCodeBlocked ? (
-          <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <section className="space-y-3 rounded-xl border-l-4 p-4" style={{ borderColor: "#D97706", backgroundColor: "#FFFBEB" }}>
             <div className="space-y-1">
-              <h2 className="text-sm font-semibold text-amber-900">Invite code required</h2>
-              <p className="text-sm text-amber-800">
-                Complete onboarding with a valid invite code before using the Provider Dashboard.
+              <h2 className="text-sm font-semibold" style={{ color: "#D97706" }}>Invite code required</h2>
+              <p className="text-sm" style={{ color: "#92400E" }}>
+                Complete onboarding with a valid invite code before using the Provider Workbench.
               </p>
-              <Link href="/onboarding" className="text-sm font-medium text-amber-900 underline">
+              <Link href="/onboarding" className="text-sm font-medium underline" style={{ color: "#D97706" }}>
                 Go to onboarding
               </Link>
             </div>
@@ -1051,29 +1075,29 @@ export default function ProviderPage() {
         ) : null}
 
         {!loadingCurrentProviderProfile && currentAccountProfile && !currentProviderProfile && !inviteCodeBlocked ? (
-          <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <section className="space-y-3 rounded-xl border-l-4 p-4" style={{ borderColor: "#D97706", backgroundColor: "#FFFBEB" }}>
             <div className="space-y-1">
-              <h2 className="text-sm font-semibold text-amber-900">Provider profile required</h2>
-              <p className="text-sm text-amber-800">
-                Complete provider onboarding before using the Provider Dashboard.
+              <h2 className="text-sm font-semibold" style={{ color: "#D97706" }}>Provider profile required</h2>
+              <p className="text-sm" style={{ color: "#92400E" }}>
+                Complete provider onboarding before using the Provider Workbench.
               </p>
-              <Link href="/onboarding" className="text-sm font-medium text-amber-900 underline">
+              <Link href="/onboarding" className="text-sm font-medium underline" style={{ color: "#D97706" }}>
                 Go to onboarding
               </Link>
             </div>
 
             {isDevelopment ? (
-              <div className="space-y-2 rounded-lg border border-amber-200 bg-white p-3">
-                <h3 className="text-sm font-semibold text-slate-900">Development tools</h3>
-                <p className="text-sm text-slate-600">
+              <div className="space-y-2 rounded-lg border p-3" style={{ borderColor: "#E5E0D8", backgroundColor: "#FFFFFF" }}>
+                <h3 className="text-sm font-semibold" style={{ color: "#0D1B2A" }}>Development tools</h3>
+                <p className="text-sm" style={{ color: "#7A7060" }}>
                   Claim existing provider profile
                 </p>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm" style={{ color: "#999999" }}>
                   For local testing only. This will not appear in production.
                 </p>
 
                 <div className="max-w-sm space-y-1">
-                  <label htmlFor="unclaimedProviderSelect" className="block text-sm font-medium text-slate-700">
+                  <label htmlFor="unclaimedProviderSelect" className="block text-sm font-medium" style={{ color: "#0D1B2A" }}>
                     Unclaimed provider
                   </label>
                   <select
@@ -1081,7 +1105,8 @@ export default function ProviderPage() {
                     value={selectedUnclaimedProviderId}
                     onChange={(event) => setSelectedUnclaimedProviderId(event.target.value)}
                     disabled={loadingUnclaimedProviders || claimingProviderProfile}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+                    style={{ borderColor: "#E5E0D8", color: "#0D1B2A" }}
                   >
                     <option value="">Select provider</option>
                     {unclaimedProviders.map((provider) => (
@@ -1098,19 +1123,20 @@ export default function ProviderPage() {
                     void handleClaimLegacyProviderProfile();
                   }}
                   disabled={claimingProviderProfile || !selectedUnclaimedProviderId}
-                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-md border bg-white px-3 py-2 text-sm font-medium transition hover:bg-opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{ borderColor: "#E5E0D8", color: "#0D1B2A" }}
                 >
                   {claimingProviderProfile ? "Claiming..." : "Claim provider profile"}
                 </button>
 
                 {claimProviderSuccess ? (
-                  <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                  <p className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "#D1FAE5", backgroundColor: "#ECFDF5", color: "#047857" }}>
                     {claimProviderSuccess}
                   </p>
                 ) : null}
 
                 {claimProviderError ? (
-                  <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  <p className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "#FECACA", backgroundColor: "#FEE2E2", color: "#DC2626" }}>
                     {claimProviderError}
                   </p>
                 ) : null}
@@ -1150,22 +1176,23 @@ export default function ProviderPage() {
         ) : null}
 
         {hasProviderDashboard ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 mb-4">
             {([
-              { id: "overview", label: "Dashboard" },
-              { id: "queue", label: "Jobs" },
+              { id: "overview", label: "Overview" },
+              { id: "queue", label: "Work Queue" },
               { id: "calendar", label: "Calendar" },
-              { id: "list", label: "List" },
+              { id: "list", label: "All Jobs" },
             ] as const).map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => updateProviderTab(tab.id)}
-                className={`min-h-11 rounded-md px-4 py-2.5 text-sm font-medium transition ${
-                  providerActiveTab === tab.id
-                    ? "rounded-full bg-[#B8860B] text-[#0D1B2A]"
-                    : "rounded-full border border-[#E5E0D8] bg-white text-[#7A7060] hover:bg-[#FAF7F2] hover:text-[#0D1B2A]"
-                }`}
+                className="min-h-11 rounded-full px-4 py-2 text-sm font-medium transition"
+                style={{
+                  backgroundColor: providerActiveTab === tab.id ? "#B8860B" : "#FFFFFF",
+                  color: providerActiveTab === tab.id ? "#0D1B2A" : "#7A7060",
+                  border: `1px solid ${providerActiveTab === tab.id ? "#B8860B" : "#E5E0D8"}`,
+                }}
               >
                 {tab.label}
               </button>
@@ -1177,30 +1204,26 @@ export default function ProviderPage() {
           <div className="space-y-3">
             {providerActiveTab === "overview" ? (
               <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:hidden">
-                <h2 className="text-base font-semibold text-slate-900">What to do now</h2>
+                <h2 className="text-base font-semibold" style={{ color: "#0D1B2A" }}>Quick Actions</h2>
 
-                <button
-                  type="button"
-                  onClick={() => updateProviderTab("queue")}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Next job</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {nextJob ? nextJob.title : "No upcoming jobs"}
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateProviderTab("queue");
-                    setProviderActiveQueue("pending_accept");
-                  }}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Jobs waiting for acceptance</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{pendingAcceptJobs.length}</p>
-                </button>
+                {pendingAcceptJobs.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateProviderTab("queue");
+                      setProviderActiveQueue("pending_accept");
+                    }}
+                    className="w-full rounded-lg border-l-4 p-3 text-left transition hover:shadow-sm"
+                    style={{ borderColor: "#D97706", backgroundColor: "#FFFBEB" }}
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "#D97706" }}>
+                      Pending Response
+                    </p>
+                    <p className="mt-1 text-lg font-semibold" style={{ color: "#0D1B2A" }}>
+                      {pendingAcceptJobs.length} job{pendingAcceptJobs.length !== 1 ? "s" : ""}
+                    </p>
+                  </button>
+                ) : null}
 
                 <button
                   type="button"
@@ -1208,11 +1231,12 @@ export default function ProviderPage() {
                     updateProviderTab("queue");
                     setProviderActiveQueue("due_today");
                   }}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
+                  className="w-full rounded-lg border-l-4 p-3 text-left transition hover:shadow-sm"
+                  style={{ borderColor: jobsDueToday.length > 0 ? "#D97706" : "#0D1B2A", backgroundColor: jobsDueToday.length > 0 ? "#FFFBEB" : "#FAF7F2" }}
                 >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Today&apos;s jobs</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{jobsDueToday.length}</p>
-                  {jobsDueToday.length === 0 ? <p className="mt-1 text-xs text-slate-600">You&apos;re all caught up today.</p> : null}
+                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "#7A7060" }}>Today&apos;s Work</p>
+                  <p className="mt-1 text-lg font-semibold" style={{ color: "#0D1B2A" }}>{jobsDueToday.length}</p>
+                  {jobsDueToday.length === 0 && <p className="mt-1 text-xs" style={{ color: "#7A7060" }}>You&apos;re all caught up today.</p>}
                 </button>
 
                 <button
@@ -1221,36 +1245,112 @@ export default function ProviderPage() {
                     updateProviderTab("queue");
                     setProviderActiveQueue("future");
                   }}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left"
+                  className="w-full rounded-lg border-l-4 p-3 text-left transition hover:shadow-sm"
+                  style={{ borderColor: "#0D1B2A" }}
                 >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Upcoming jobs</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{futureJobsInRange.length}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "#7A7060" }}>Upcoming Work</p>
+                  <p className="mt-1 text-lg font-semibold" style={{ color: "#0D1B2A" }}>{futureJobsInRange.length}</p>
                 </button>
 
-                <details className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <summary className="cursor-pointer text-sm font-medium text-slate-700">Completed jobs</summary>
-                  <p className="mt-2 text-sm text-slate-700">{completedPastJobs.length} completed jobs</p>
+                <details className="rounded-lg border p-3" style={{ borderColor: "#E5E0D8" }}>
+                  <summary className="cursor-pointer text-sm font-medium" style={{ color: "#0D1B2A" }}>
+                    Completed ({completedPastJobs.length})
+                  </summary>
+                  <p className="mt-2 text-sm" style={{ color: "#7A7060" }}>View your completed work in the All Jobs tab.</p>
                 </details>
               </section>
             ) : null}
 
             {providerActiveTab === "overview" ? (
-              <div className="hidden md:block">
-                <NotificationPanel
-                  title="Provider notifications"
-                  notifications={providerNotifications}
-                  loading={loadingProviderNotifications}
-                  error={providerNotificationsError}
-                  onRetry={() => {
-                    if (selectedCleanerId) {
-                      void loadProviderNotifications(selectedCleanerId);
-                    }
-                  }}
-                  onMarkRead={handleMarkProviderNotificationRead}
-                  onMarkAllRead={handleMarkAllProviderNotificationsRead}
-                  onNotificationClick={handleProviderNotificationClick}
-                />
-              </div>
+              <section className="hidden space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm md:block">
+                <h2 className="text-lg font-semibold" style={{ color: "#0D1B2A" }}>Summary</h2>
+
+                {/* Summary cards grid */}
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  {[
+                    { id: "pending_accept", label: "Pending Acceptance", count: pendingAcceptJobs.length, color: "#D97706", borderColor: "#FCD34D" },
+                    { id: "due_today", label: "Today", count: jobsDueToday.length, color: "#D97706", borderColor: "#FCD34D" },
+                    { id: "future", label: "Upcoming", count: futureJobsInRange.length, color: "#0D1B2A", borderColor: "#E5E0D8" },
+                    { id: "in_progress", label: "In Progress", count: inProgressJobs.length, color: "#1A6B60", borderColor: "#99E6DD" },
+                    { id: "completed_past", label: "Completed", count: completedPastJobs.length, color: "#1A6B60", borderColor: "#99E6DD" },
+                  ].map((card) => (
+                    <button
+                      key={card.id}
+                      type="button"
+                      onClick={() => {
+                        setProviderActiveQueue(card.id as ProviderActionQueue);
+                        updateProviderTab("queue");
+                      }}
+                      className="rounded-lg border-l-4 bg-white p-3 text-left transition hover:shadow-md"
+                      style={{ borderColor: card.color }}
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "#7A7060" }}>
+                        {card.label}
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold" style={{ color: "#0D1B2A", minHeight: "32px" }}>
+                        {card.count}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Find Work filter section */}
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-semibold mb-3" style={{ color: "#0D1B2A" }}>Find Work</h3>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="filter-status" className="block text-xs font-medium mb-1" style={{ color: "#7A7060" }}>
+                        Status
+                      </label>
+                      <select
+                        id="filter-status"
+                        className="w-full rounded-md border px-3 py-2 text-sm"
+                        style={{ borderColor: "#E5E0D8", backgroundColor: "#FFFFFF", color: "#0D1B2A" }}
+                      >
+                        <option value="">All statuses</option>
+                        <option value="assigned">Pending Acceptance</option>
+                        <option value="accepted">Accepted</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="filter-service" className="block text-xs font-medium mb-1" style={{ color: "#7A7060" }}>
+                        Service Type
+                      </label>
+                      <select
+                        id="filter-service"
+                        className="w-full rounded-md border px-3 py-2 text-sm"
+                        style={{ borderColor: "#E5E0D8", backgroundColor: "#FFFFFF", color: "#0D1B2A" }}
+                      >
+                        <option value="">All types</option>
+                        <option value="cleaning">Cleaning</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="restock">Restock</option>
+                        <option value="inspection">Inspection</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateProviderTab("queue")}
+                      className="rounded-md px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+                      style={{ backgroundColor: "#0D1B2A" }}
+                    >
+                      View Work
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProviderActiveQueue("none")}
+                      className="rounded-md border px-4 py-2 text-sm font-medium transition"
+                      style={{ borderColor: "#E5E0D8", color: "#7A7060" }}
+                    >
+                      Reset Filters
+                    </button>
+                  </div>
+                </div>
+              </section>
             ) : null}
 
             <div className="flex justify-end">
@@ -1259,206 +1359,77 @@ export default function ProviderPage() {
                 onClick={() => {
                   void refreshProviderDashboardData();
                 }}
-                className="min-h-11 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="min-h-11 rounded-md border px-4 py-2 text-sm font-medium transition hover:opacity-90"
+                style={{ borderColor: "#E5E0D8", color: "#7A7060", backgroundColor: "#FFFFFF" }}
               >
-                Refresh dashboard
+                Refresh workbench
               </button>
             </div>
 
             {providerActiveTab === "overview" ? (
-              <section className="hidden space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm md:block">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">Provider summary</h2>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex flex-wrap rounded-md border border-slate-300 bg-white p-1">
+              <section className="hidden space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm md:block">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold" style={{ color: "#0D1B2A" }}>Provider Notifications</h3>
+                  {providerNotifications.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setProviderSummaryRange(7)}
-                      className={`rounded px-3 py-1.5 text-sm font-medium transition ${
-                        providerSummaryRange === 7
-                          ? "bg-slate-900 text-white"
-                          : "text-slate-700 hover:bg-slate-100"
-                      }`}
+                      onClick={() => void handleMarkAllProviderNotificationsRead()}
+                      className="text-xs font-medium transition hover:opacity-75"
+                      style={{ color: "#B8860B" }}
                     >
-                      Next 7 days
+                      Mark all read
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setProviderSummaryRange(30)}
-                      className={`rounded px-3 py-1.5 text-sm font-medium transition ${
-                        providerSummaryRange === 30
-                          ? "bg-slate-900 text-white"
-                          : "text-slate-700 hover:bg-slate-100"
-                      }`}
-                    >
-                      Next 30 days
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setProviderSummaryRange(90)}
-                      className={`rounded px-3 py-1.5 text-sm font-medium transition ${
-                        providerSummaryRange === 90
-                          ? "bg-slate-900 text-white"
-                          : "text-slate-700 hover:bg-slate-100"
-                      }`}
-                    >
-                      Next 90 days
-                    </button>
+                  )}
+                </div>
+                {loadingProviderNotifications ? (
+                  <p className="text-sm" style={{ color: "#7A7060" }}>Loading notifications...</p>
+                ) : providerNotificationsError ? (
+                  <p className="text-sm text-red-700">{providerNotificationsError}</p>
+                ) : providerNotifications.length > 0 ? (
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {providerNotifications.slice(0, 5).map((notification) => (
+                      <button
+                        key={notification.id}
+                        onClick={() => void handleProviderNotificationClick(notification)}
+                        className="w-full rounded-lg border p-3 text-left transition hover:bg-amber-50"
+                        style={{ borderColor: "#E5E0D8", backgroundColor: "#FFFBEB" }}
+                      >
+                        <p className="text-sm font-medium" style={{ color: "#0D1B2A" }}>{notification.message}</p>
+                        {notification.createdAt && (
+                          <p className="mt-1 text-xs" style={{ color: "#7A7060" }}>
+                            {new Date(notification.createdAt).toLocaleDateString()}
+                          </p>
+                        )}
+                      </button>
+                    ))}
                   </div>
-                </div>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <button
-                  type="button"
-                  onClick={() => setProviderActiveQueue("pending_accept")}
-                  className={`rounded-lg border bg-white p-3 text-left ${
-                    pendingAcceptJobs.length > 0
-                      ? "border-amber-300 bg-amber-50/60"
-                      : "border-slate-200"
-                  } ${providerActiveQueue === "pending_accept" ? "ring-2 ring-slate-300" : ""}`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Pending accept</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{pendingAcceptJobs.length}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProviderActiveQueue("due_today")}
-                  className={`rounded-lg border bg-white p-3 text-left ${
-                    jobsDueToday.length > 0
-                      ? "border-amber-300 bg-amber-50/60"
-                      : "border-slate-200"
-                  } ${providerActiveQueue === "due_today" ? "ring-2 ring-slate-300" : ""}`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Due today</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{jobsDueToday.length}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProviderActiveQueue("accepted")}
-                  className={`rounded-lg border border-slate-200 bg-white p-3 text-left ${providerActiveQueue === "accepted" ? "ring-2 ring-slate-300" : ""}`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Accepted</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{acceptedJobs.length}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProviderActiveQueue("in_progress")}
-                  className={`rounded-lg border bg-white p-3 text-left ${
-                    inProgressJobs.length > 0
-                      ? "border-amber-300 bg-amber-50/60"
-                      : "border-slate-200"
-                  } ${providerActiveQueue === "in_progress" ? "ring-2 ring-slate-300" : ""}`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">In progress</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{inProgressJobs.length}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProviderActiveQueue("future")}
-                  className={`rounded-lg border border-slate-200 bg-white p-3 text-left ${providerActiveQueue === "future" ? "ring-2 ring-slate-300" : ""}`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Future jobs</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{futureJobsInRange.length}</p>
-                  <p className="mt-1 text-xs text-slate-500">Next {providerSummaryRange} days</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProviderActiveQueue("completed_past")}
-                  className={`rounded-lg border border-slate-200 bg-white p-3 text-left ${providerActiveQueue === "completed_past" ? "ring-2 ring-slate-300" : ""}`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Completed past</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{completedPastJobs.length}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProviderActiveQueue("not_completed_past")}
-                  className={`rounded-lg border border-slate-200 bg-white p-3 text-left ${providerActiveQueue === "not_completed_past" ? "ring-2 ring-slate-300" : ""}`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Not completed past</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{notCompletedPastJobs.length}</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProviderActiveQueue("issues")}
-                  className={`rounded-lg border bg-white p-3 text-left ${
-                    jobsWithIssues.length > 0
-                      ? "border-amber-300 bg-amber-50/60"
-                      : "border-slate-200"
-                  } ${providerActiveQueue === "issues" ? "ring-2 ring-slate-300" : ""}`}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Jobs with issues</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900">{jobsWithIssues.length}</p>
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Issue queues</h3>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <button
-                    type="button"
-                    onClick={() => setProviderActiveQueue("maintenance")}
-                    className={`rounded-lg border bg-white p-3 text-left transition ${
-                      maintenanceIssueJobs.length > 0
-                        ? "border-amber-300 bg-amber-50/60"
-                        : "border-slate-200"
-                    } ${providerActiveQueue === "maintenance" ? "ring-2 ring-slate-300" : "hover:bg-slate-50"}`}
-                  >
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Maintenance</p>
-                    <p className="mt-1 text-2xl font-semibold text-slate-900">{maintenanceIssueJobs.length}</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProviderActiveQueue("restock")}
-                    className={`rounded-lg border bg-white p-3 text-left transition ${
-                      restockIssueJobs.length > 0
-                        ? "border-amber-300 bg-amber-50/60"
-                        : "border-slate-200"
-                    } ${providerActiveQueue === "restock" ? "ring-2 ring-slate-300" : "hover:bg-slate-50"}`}
-                  >
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Restock</p>
-                    <p className="mt-1 text-2xl font-semibold text-slate-900">{restockIssueJobs.length}</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProviderActiveQueue("damage")}
-                    className={`rounded-lg border bg-white p-3 text-left transition ${
-                      damageIssueJobs.length > 0
-                        ? "border-amber-300 bg-amber-50/60"
-                        : "border-slate-200"
-                    } ${providerActiveQueue === "damage" ? "ring-2 ring-slate-300" : "hover:bg-slate-50"}`}
-                  >
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Damage</p>
-                    <p className="mt-1 text-2xl font-semibold text-slate-900">{damageIssueJobs.length}</p>
-                  </button>
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-600">Jobs with notes: {jobsWithNotes.length}</p>
+                ) : (
+                  <p className="text-sm" style={{ color: "#7A7060" }}>No new notifications.</p>
+                )}
               </section>
             ) : null}
 
             {providerActiveTab === "overview" || providerActiveTab === "queue" ? (
               <section
               ref={providerQueueSectionRef}
-              className={`hidden space-y-3 rounded-xl p-4 shadow-sm md:block ${
-                providerActiveQueue === "notification_job"
-                  ? "border border-indigo-200 bg-indigo-50/60 ring-1 ring-indigo-200"
-                  : "border border-slate-200 bg-slate-50/70"
-              }`}
+              className="hidden space-y-4 rounded-xl p-6 shadow-sm md:block"
+              style={{
+                border: `1px solid ${providerActiveQueue === "notification_job" ? "#FCD34D" : "#E5E0D8"}`,
+                backgroundColor: providerActiveQueue === "notification_job" ? "#FFFBEB" : "#FFFFFF",
+              }}
             >
-              <h2 className="text-sm font-semibold text-slate-900">Job queue</h2>
+              <h2 className="text-lg font-semibold" style={{ color: "#0D1B2A" }}>Assigned Work</h2>
 
               {providerActiveQueue === "none" ? (
-                <p className="text-sm text-slate-600">
-                  Select a summary card above to open a focused job queue.
+                <p className="text-sm" style={{ color: "#7A7060" }}>
+                  Select a summary card above to view work or reset filters to see all assigned jobs.
                 </p>
               ) : (
                 <>
-                  <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="space-y-1">
-                      <h3 className="text-sm font-semibold text-slate-900">{providerQueueMeta.title}</h3>
-                      <p className="text-sm text-slate-600">{providerQueueMeta.description}</p>
+                      <h3 className="text-base font-semibold" style={{ color: "#0D1B2A" }}>{providerQueueMeta.title}</h3>
+                      <p className="text-sm" style={{ color: "#7A7060" }}>{providerQueueMeta.description}</p>
                     </div>
                     <button
                       type="button"
@@ -1468,16 +1439,17 @@ export default function ProviderPage() {
                         setFocusedNotificationJobError("");
                         setLoadingFocusedNotificationJob(false);
                       }}
-                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                      className="whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium transition hover:opacity-75"
+                      style={{ borderColor: "#E5E0D8", color: "#7A7060" }}
                     >
                       {providerActiveQueue === "notification_job"
-                        ? "Close notification job"
-                        : "Clear queue"}
+                        ? "Close notification"
+                        : "Clear filters"}
                     </button>
                   </div>
 
                   {providerActiveQueue === "notification_job" && loadingFocusedNotificationJob ? (
-                    <p className="text-sm text-slate-600">Loading job...</p>
+                    <p className="text-sm" style={{ color: "#7A7060" }}>Loading job details...</p>
                   ) : null}
 
                   {providerActiveQueue === "notification_job" && focusedNotificationJobError ? (
@@ -1487,8 +1459,8 @@ export default function ProviderPage() {
                   ) : null}
 
                   {providerActiveQueue === "notification_job" && !loadingFocusedNotificationJob && !focusedNotificationJobError && !focusedNotificationJob ? (
-                    <p className="text-sm text-slate-600">
-                      This job is no longer available in your assigned jobs.
+                    <p className="text-sm" style={{ color: "#7A7060" }}>
+                      This job is no longer available in your assigned work.
                     </p>
                   ) : null}
 
