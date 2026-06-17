@@ -4,14 +4,19 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "e2e:clean": "node -e \"const fs=require('fs');fs.rmSync('.next',{recursive:true,force:true});\"",
+    "e2e:dev": "npm run e2e:clean && next dev --port 3100",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "db:clear-operational": "tsx scripts/clear-operational-data.ts",
+    "db:clear-e2e-owner": "tsx scripts/clear-e2e-owner-jobs.ts",
     "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
+    "test:e2e:setup": "playwright test --project=setup",
     "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
@@ -33,6 +38,7 @@
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "autoprefixer": "^10.5.0",
+    "dotenv": "^16.6.1",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
     "postcss": "^8.5.15",

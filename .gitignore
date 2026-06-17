@@ -2,20 +2,33 @@ node_modules
 .next
 .env
 .env.local
+.env.example
 /lib/generated/prisma
 /prisma/dev.db
 /prisma/dev.db-journal
 /playwright-report
 /test-results
+/playwright/.auth/
 /prisma/migrations_sqlite_backup/
 
 
 # clerk configuration (can include secrets)
 /.clerk/
-.env.example
 
 # Azure publish profiles / deployment secrets
 publish-profile.xml
 *.PublishSettings
 *.pubxml
 *.pubxml.user
+
+# E2E / Playwright local artifacts
+playwright/.auth/
+test-results/
+playwright-report/
+test-results.log
+
+# TypeScript build cache
+tsconfig.tsbuildinfo
+
+# Next local build output
+.next/
